@@ -1,18 +1,46 @@
-import random
+import imghdr
+import io
+import os
+import time
 from pathlib import Path
 
-import cv2
-import einops
-import numpy as np
 import torch
+from PIL import Image
+from flask import (
+    Flask,
+    request,
+    send_file,
+    cli,
+    make_response,
+)
+from flask_cors import CORS
+from loguru import logger
 from typer import Typer, Option
 
-from annotator.util import resize_image, HWC3
 from cldm.model import create_model, load_state_dict
-from ldm.models.diffusion.ddim import DDIMSampler
-from ldm.tldream_util import seed_everything
+from ldm.tldream_util import process, load_img, torch_gc, pil_to_bytes
+
+app = Flask(__name__, static_folder=os.path.join("app/build", "static"))
+app.config["JSON_AS_ASCII"] = False
+CORS(app, expose_headers=["Content-Disposition"])
+
+# Disable ability for Flask to display warning about using a development server in a production environment.
+# https://gist.github.com/jerblack/735b9953ba1ab6234abb43174210d356
+cli.show_server_banner = lambda *_: None
 
 current_dir = Path(__file__).parent.absolute().resolve()
+typer_app = Typer(add_completion=False, pretty_exceptions_show_locals=False)
+
+controlled_model = None
+_device = "cpu"
+_low_vram = False
+
+
+def get_image_ext(img_bytes):
+    w = imghdr.what("", img_bytes)
+    if w is None:
+        w = "jpeg"
+    return w
 
 
 def init_model(model_path, device):
@@ -23,87 +51,52 @@ def init_model(model_path, device):
     return model
 
 
-@torch.no_grad()
-def process(
-    model,
-    device: str,
-    input_image: np.ndarray,
-    prompt: str,
-    negative_prompt: str,
-    num_samples: int = 1,
-    max_side_length: int = 512,
-    ddim_steps: int = 20,
-    scale: float = 9.0,
-    seed: int = -1,
-    eta: float = 0.0,
-    low_vram: bool = True,
-):
-    # return rgb image
-    ddim_sampler = DDIMSampler(model, device)
-    img = resize_image(HWC3(input_image), max_side_length)
-    H, W, C = img.shape
+@app.route("/run", methods=["POST"])
+def process():
+    input = request.files
+    # form = request.form
 
-    detected_map = np.zeros_like(img, dtype=np.uint8)
-    detected_map[np.min(img, axis=2) < 127] = 255
+    origin_image_bytes = input["image"].read()
+    image, alpha_channel, exif = load_img(origin_image_bytes, return_exif=True)
+    start = time.time()
+    try:
+        rgb_images = process(
+            controlled_model,
+            _device,
+            image,
+            "a turtle in river",
+            "",
+            low_vram=_low_vram,
+        )
 
-    control = torch.from_numpy(detected_map.copy()).float().to(device) / 255.0
-    control = torch.stack([control for _ in range(num_samples)], dim=0)
-    control = einops.rearrange(control, "b h w c -> b c h w").clone()
+    except RuntimeError as e:
+        torch.cuda.empty_cache()
+        if "CUDA out of memory. " in str(e):
+            # NOTE: the string may change?
+            return "CUDA out of memory", 500
+        else:
+            logger.exception(e)
+            return "Internal Server Error", 500
+    finally:
+        logger.info(f"process time: {(time.time() - start) * 1000}ms")
+        torch_gc()
 
-    if seed == -1:
-        seed = random.randint(0, 9999999999)
-    seed_everything(seed)
+    res_rgb_img = rgb_images[0]
+    bytes_io = io.BytesIO(pil_to_bytes(Image.fromarray(res_rgb_img), "jpeg"))
 
-    if low_vram:
-        model.low_vram_shift(is_diffusing=False)
-
-    cond = {
-        "c_concat": [control],
-        "c_crossattn": [
-            model.get_learned_conditioning([prompt] * num_samples)
-        ],
-    }
-    un_cond = {
-        "c_concat": [control],
-        "c_crossattn": [model.get_learned_conditioning([negative_prompt] * num_samples)],
-    }
-    shape = (4, H // 8, W // 8)
-
-    if low_vram:
-        model.low_vram_shift(is_diffusing=True)
-
-    samples, intermediates = ddim_sampler.sample(
-        ddim_steps,
-        num_samples,
-        shape,
-        cond,
-        verbose=False,
-        eta=eta,
-        unconditional_guidance_scale=scale,
-        unconditional_conditioning=un_cond,
+    response = make_response(
+        send_file(
+            bytes_io,
+            mimetype=f"image/jpeg",
+        )
     )
-
-    if low_vram:
-        model.low_vram_shift(is_diffusing=False)
-
-    x_samples = model.decode_first_stage(samples)
-    x_samples = (
-        (einops.rearrange(x_samples, "b c h w -> b h w c") * 127.5 + 127.5)
-        .cpu()
-        .numpy()
-        .clip(0, 255)
-        .astype(np.uint8)
-    )
-
-    results = [x_samples[i] for i in range(num_samples)]
-    return results
+    return response
 
 
-app = Typer(add_completion=False, pretty_exceptions_show_locals=False)
-
-
-@app.command()
+@typer_app.command()
 def main(
+    host: str = Option("127.0.0.1"),
+    port: int = Option(4242),
     device: str = Option("mps", help="Device to use (cuda, cpu or mps)"),
     model: Path = Option(
         "/Users/cwq/code/github/ControlNet/models/control_any3_better_scribble.pth",
@@ -111,18 +104,14 @@ def main(
     ),
     low_vram: bool = Option(True, help="Use low vram mode"),
 ):
-    model = init_model(model, device)
-    img = cv2.imread("/Users/cwq/code/github/ControlNet/test_imgs/user_1.png")
-    rgb_images = process(
-        model,
-        device,
-        img,
-        "a turtle in river",
-        "",
-        low_vram=low_vram,
-    )
-    cv2.imwrite("test.jpg", cv2.cvtColor(rgb_images[0], cv2.COLOR_RGB2BGR))
+    global controlled_model
+    global _device
+    global _low_vram
+    controlled_model = init_model(model, device)
+    _device = device
+    _low_vram = low_vram
+    app.run(host=host, port=port)
 
 
 if __name__ == "__main__":
-    app()
+    typer_app()
