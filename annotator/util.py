@@ -21,11 +21,12 @@ def HWC3(x):
         return y
 
 
-def resize_image(input_image, resolution):
+def resize_image(input_image, max_side_length):
+    # keep ratio, resize max side of image to resolution
     H, W, C = input_image.shape
     H = float(H)
     W = float(W)
-    k = float(resolution) / min(H, W)
+    k = float(max_side_length) / min(H, W)
     H *= k
     W *= k
     H = int(np.round(H / 64.0)) * 64
