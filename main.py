@@ -5,30 +5,33 @@ import time
 from pathlib import Path
 
 import torch
+import uvicorn
 from PIL import Image
-from flask import (
-    Flask,
-    request,
-    send_file,
-    cli,
-    make_response,
-)
-from flask_cors import CORS
 from loguru import logger
+from starlette.responses import FileResponse, StreamingResponse
 from typer import Typer, Option
+from fastapi import FastAPI, File, Form
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
+from cldm.hack import disable_verbosity, enable_sliced_attention
 from cldm.model import create_model, load_state_dict
 from ldm.tldream_util import process, load_img, torch_gc, pil_to_bytes
 
-app = Flask(__name__, static_folder=os.path.join("app/build", "static"))
-app.config["JSON_AS_ASCII"] = False
-CORS(app, expose_headers=["Content-Disposition"])
-
-# Disable ability for Flask to display warning about using a development server in a production environment.
-# https://gist.github.com/jerblack/735b9953ba1ab6234abb43174210d356
-cli.show_server_banner = lambda *_: None
-
+disable_verbosity()
 current_dir = Path(__file__).parent.absolute().resolve()
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+web_static_folder = os.path.join("app/build", "static")
+# app.mount("/static", StaticFiles(directory=web_static_folder), name="static")
+
 typer_app = Typer(add_completion=False, pretty_exceptions_show_locals=False)
 
 controlled_model = None
@@ -51,12 +54,18 @@ def init_model(model_path, device):
     return model
 
 
-@app.route("/run", methods=["POST"])
-def process():
-    input = request.files
-    # form = request.form
+def diffusion_callback(step_i):
+    print(step_i)
 
-    origin_image_bytes = input["image"].read()
+
+@app.get("/")
+async def main():
+    return FileResponse(os.path.join(web_static_folder, "index.html"))
+
+
+@app.post("/run")
+def run(image: bytes = File(...), prompt: str = Form(...)):
+    origin_image_bytes = image
     image, alpha_channel, exif = load_img(origin_image_bytes, return_exif=True)
     start = time.time()
     try:
@@ -64,9 +73,11 @@ def process():
             controlled_model,
             _device,
             image,
-            "a turtle in river",
+            prompt,
             "",
+            ddim_steps=1,
             low_vram=_low_vram,
+            callback=diffusion_callback,
         )
 
     except RuntimeError as e:
@@ -84,12 +95,13 @@ def process():
     res_rgb_img = rgb_images[0]
     bytes_io = io.BytesIO(pil_to_bytes(Image.fromarray(res_rgb_img), "jpeg"))
 
-    response = make_response(
-        send_file(
-            bytes_io,
-            mimetype=f"image/jpeg",
-        )
-    )
+    # response = make_response(
+    #     send_file(
+    #         bytes_io,
+    #         mimetype=f"image/jpeg",
+    #     )
+    # )
+    response = StreamingResponse(bytes_io)
     return response
 
 
@@ -107,10 +119,13 @@ def main(
     global controlled_model
     global _device
     global _low_vram
+    if low_vram:
+        enable_sliced_attention()
+
     controlled_model = init_model(model, device)
     _device = device
     _low_vram = low_vram
-    app.run(host=host, port=port)
+    uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":

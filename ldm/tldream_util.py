@@ -15,9 +15,9 @@ from annotator.util import resize_image, HWC3
 from ldm.models.diffusion.ddim import DDIMSampler
 
 
-def pil_to_bytes(pil_img, ext: str, exif=None) -> bytes:
+def pil_to_bytes(pil_img, ext: str) -> bytes:
     with io.BytesIO() as output:
-        pil_img.save(output, format=ext, exif=exif, quality=95)
+        pil_img.save(output, format=ext, quality=95)
         image_bytes = output.getvalue()
     return image_bytes
 
@@ -69,10 +69,13 @@ def process(
     seed: int = -1,
     eta: float = 0.0,
     low_vram: bool = True,
+    callback=None,
 ):
     # return rgb image
     ddim_sampler = DDIMSampler(model, device)
+    logger.info(f"Original image shape: {input_image.shape}")
     img = resize_image(HWC3(input_image), max_side_length)
+    logger.info(f"Resized image shape: {img.shape}")
     H, W, C = img.shape
 
     detected_map = np.zeros_like(img, dtype=np.uint8)
@@ -113,6 +116,7 @@ def process(
         eta=eta,
         unconditional_guidance_scale=scale,
         unconditional_conditioning=un_cond,
+        callback=callback,
     )
 
     if low_vram:
