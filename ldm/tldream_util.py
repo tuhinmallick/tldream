@@ -56,7 +56,7 @@ def load_img(img_bytes, gray: bool = False, return_exif: bool = False):
 
 
 @torch.no_grad()
-def process(
+async def process(
     model,
     device: str,
     input_image: np.ndarray,
@@ -107,7 +107,7 @@ def process(
     if low_vram:
         model.low_vram_shift(is_diffusing=True)
 
-    samples, intermediates = ddim_sampler.sample(
+    samples, intermediates = await ddim_sampler.sample(
         ddim_steps,
         num_samples,
         shape,

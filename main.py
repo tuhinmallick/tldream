@@ -1,18 +1,23 @@
+import asyncio
 import imghdr
 import io
 import os
+import threading
 import time
+from enum import Enum
 from pathlib import Path
+from typing import List, Dict
 
 import torch
 import uvicorn
 from PIL import Image
-from loguru import logger
-from starlette.responses import FileResponse, StreamingResponse
-from typer import Typer, Option
 from fastapi import FastAPI, File, Form
-from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
+from pydantic import BaseModel
+from starlette.responses import FileResponse, StreamingResponse
+from starlette.websockets import WebSocketDisconnect, WebSocket
+from typer import Typer, Option
 
 from cldm.hack import disable_verbosity, enable_sliced_attention
 from cldm.model import create_model, load_state_dict
@@ -54,8 +59,64 @@ def init_model(model_path, device):
     return model
 
 
-def diffusion_callback(step_i):
-    print(step_i)
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        self.active_connections.remove(websocket)
+
+    async def broadcast(self, data: Dict):
+        for connection in self.active_connections:
+            await connection.send_json(data)
+
+
+manager = ConnectionManager()
+
+
+class RunningState(str, Enum):
+    NONE = "none"
+    DIFFUSION = "diffusion"
+    DOWNLOADING = "downloading"
+
+
+class AppState(BaseModel):
+    running_state: RunningState = RunningState.NONE
+    step_i: int = 0
+    steps: int = 0
+    model_size: int = 0
+    model_downloaded_size: int = 0
+
+    async def reset(self):
+        self.running_state = RunningState.NONE
+        self.step_i = 0
+        self.steps = 0
+        self.model_size = 0
+        self.model_downloaded_size = 0
+        await manager.broadcast(self.dict())
+
+
+state = AppState()
+lock = threading.Lock()
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+
+async def diffusion_callback(step_i):
+    print(f"step_i: {step_i}")
+    await manager.broadcast(state.dict())
 
 
 @app.get("/")
@@ -64,43 +125,41 @@ async def main():
 
 
 @app.post("/run")
-def run(image: bytes = File(...), prompt: str = Form(...)):
+async def run(image: bytes = File(...), prompt: str = Form(...)):
     origin_image_bytes = image
     image, alpha_channel, exif = load_img(origin_image_bytes, return_exif=True)
     start = time.time()
-    try:
-        rgb_images = process(
-            controlled_model,
-            _device,
-            image,
-            prompt,
-            "",
-            ddim_steps=1,
-            low_vram=_low_vram,
-            callback=diffusion_callback,
-        )
+    steps = 10
+    state.steps = steps
+    with lock:
+        state.running_state = RunningState.DIFFUSION
+        try:
+            rgb_images = await process(
+                controlled_model,
+                _device,
+                image,
+                "a turtle in a river",
+                "",
+                ddim_steps=steps,
+                low_vram=_low_vram,
+                callback=diffusion_callback,
+            )
 
-    except RuntimeError as e:
-        torch.cuda.empty_cache()
-        if "CUDA out of memory. " in str(e):
-            # NOTE: the string may change?
-            return "CUDA out of memory", 500
-        else:
-            logger.exception(e)
-            return "Internal Server Error", 500
-    finally:
-        logger.info(f"process time: {(time.time() - start) * 1000}ms")
-        torch_gc()
+        except RuntimeError as e:
+            torch.cuda.empty_cache()
+            if "CUDA out of memory. " in str(e):
+                # NOTE: the string may change?
+                return "CUDA out of memory", 500
+            else:
+                logger.exception(e)
+                return "Internal Server Error", 500
+        finally:
+            logger.info(f"process time: {(time.time() - start) * 1000}ms")
+            torch_gc()
+            await state.reset()
 
     res_rgb_img = rgb_images[0]
     bytes_io = io.BytesIO(pil_to_bytes(Image.fromarray(res_rgb_img), "jpeg"))
-
-    # response = make_response(
-    #     send_file(
-    #         bytes_io,
-    #         mimetype=f"image/jpeg",
-    #     )
-    # )
     response = StreamingResponse(bytes_io)
     return response
 
