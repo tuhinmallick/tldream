@@ -1,35 +1,29 @@
-import asyncio
-import imghdr
 import io
 import os
 import threading
+import time
+from pathlib import Path
 from urllib.parse import urlparse
 
-import time
-from enum import Enum
-from pathlib import Path
-from typing import List, Dict
-
 import torch
-from torch.hub import download_url_to_file
 import uvicorn
 from PIL import Image
 from fastapi import FastAPI, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
-from pydantic import BaseModel
 from starlette.responses import FileResponse, StreamingResponse
-from starlette.websockets import WebSocketDisconnect, WebSocket
+from torch.hub import download_url_to_file
 from typer import Typer, Option
 
 from tldream.cldm.hack import disable_verbosity, enable_sliced_attention
-from tldream.cldm.model import create_model, load_state_dict
-from tldream.util import process, load_img, torch_gc, pil_to_bytes
+from tldream.socket_manager import SocketManager
+from tldream.util import process, load_img, torch_gc, pil_to_bytes, init_model
 
 disable_verbosity()
 current_dir = Path(__file__).parent.absolute().resolve()
 
 app = FastAPI()
+sio = SocketManager(app=app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -47,79 +41,26 @@ _device = "cpu"
 _low_vram = False
 
 
-def get_image_ext(img_bytes):
-    w = imghdr.what("", img_bytes)
-    if w is None:
-        w = "jpeg"
-    return w
-
-
-def init_model(model_path, device):
-    cfg_path = current_dir / "cldm_v15.yaml"
-    model = create_model(str(cfg_path), device).cpu()
-    model.load_state_dict(load_state_dict(model_path, location="cpu"))
-    model = model.to(device)
-    return model
-
-
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: List[WebSocket] = []
-
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-
-    def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
-
-    async def broadcast(self, data: Dict):
-        for connection in self.active_connections:
-            await connection.send_json(data)
-
-
-manager = ConnectionManager()
-
-
-class RunningState(str, Enum):
-    NONE = "none"
-    DIFFUSION = "diffusion"
-    DOWNLOADING = "downloading"
-
-
-class AppState(BaseModel):
-    running_state: RunningState = RunningState.NONE
-    step_i: int = 0
-    steps: int = 0
-    model_size: int = 0
-    model_downloaded_size: int = 0
-
-    async def reset(self):
-        self.running_state = RunningState.NONE
-        self.step_i = 0
-        self.steps = 0
-        self.model_size = 0
-        self.model_downloaded_size = 0
-        await manager.broadcast(self.dict())
-
-
-state = AppState()
 lock = threading.Lock()
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await manager.connect(websocket)
-    try:
-        while True:
-            data = await websocket.receive_json()
-    except WebSocketDisconnect:
-        manager.disconnect(websocket)
+async def diffusion_callback(pred_i, step_i):
+    # TODO: visual latent Tensor [1, 4, 64, 64]
+    # pred_i = pred_i.squeeze(0).detch().cpu().numpy().transpose(1, 2, 0)
+    # pred_i = (pred_i * 255).astype(np.uint8)
+    await sio.emit("progress", {"step": step_i})
 
 
-async def diffusion_callback(step_i):
-    print(f"step_i: {step_i}")
-    await manager.broadcast(state.dict())
+@sio.on("join")
+async def handle_join(sid, *args, **kwargs):
+    logger.info(f"join: {sid}")
+    # await socket_manager.emit("lobby", "User joined")
+
+
+@sio.on("leave")
+async def handle_leave(sid, *args, **kwargs):
+    logger.info(f"leave: {sid}")
+    # await socket_manager.emit("lobby", "User joined")
 
 
 @app.get("/")
@@ -129,28 +70,28 @@ async def main():
 
 @app.post("/run")
 async def run(
-        image: bytes = File(...),
-        steps: int = Form(20),
-        prompt: str = Form(...),
-        negative_prompt: str = Form(""),
-        guidance_scale: float = Form(9.0),
-        width: int = Form(512),
-        height: int = Form(512),
+    image: bytes = File(...),
+    steps: int = Form(20),
+    prompt: str = Form(...),
+    negative_prompt: str = Form(""),
+    guidance_scale: float = Form(9.0),
+    width: int = Form(512),
+    height: int = Form(512),
 ):
-    logger.info({
-        "steps": steps,
-        "guidance_scale": guidance_scale,
-        "prompt": prompt,
-        "negative_prompt": negative_prompt,
-        "width": width,
-        "height": height,
-    })
+    logger.info(
+        {
+            "steps": steps,
+            "guidance_scale": guidance_scale,
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "width": width,
+            "height": height,
+        }
+    )
     origin_image_bytes = image
     image, alpha_channel, exif = load_img(origin_image_bytes, return_exif=True)
     start = time.time()
-    state.steps = steps
     with lock:
-        state.running_state = RunningState.DIFFUSION
         try:
             res_rgb_img = await process(
                 controlled_model,
@@ -177,7 +118,7 @@ async def run(
         finally:
             logger.info(f"process time: {(time.time() - start) * 1000}ms")
             torch_gc()
-            await state.reset()
+            await sio.emit("finish")
 
     bytes_io = io.BytesIO(pil_to_bytes(Image.fromarray(res_rgb_img), "jpeg"))
     response = StreamingResponse(bytes_io)
@@ -186,7 +127,7 @@ async def run(
 
 PRE_DEFINE_MODELS = {
     "sd15": "https://huggingface.co/lllyasviel/ControlNet/resolve/main/models/control_sd15_scribble.pth",
-    "any3": "/Users/cwq/code/github/ControlNet/models/control_any3_better_scribble.pth"
+    "any3": "/Users/cwq/code/github/ControlNet/models/control_any3_better_scribble.pth",
 }
 
 
@@ -209,19 +150,21 @@ def get_model_path(model_name, save_dir):
         logger.info(f"Downloading {filename} to {save_dir.absolute()}")
         download_url_to_file(model_p, dst_p, progress=True)
         return dst_p
-    raise ValueError(f"model {model_name} is invalid, available models: {list(PRE_DEFINE_MODELS.keys())}")
+    raise ValueError(
+        f"model {model_name} is invalid, available models: {list(PRE_DEFINE_MODELS.keys())}"
+    )
 
 
 @typer_app.command()
 def start(
-        host: str = Option("127.0.0.1"),
-        port: int = Option(4242),
-        device: str = Option("mps", help="Device to use (cuda, cpu or mps)"),
-        model_id: str = Option(
-            "any3", help="Local path to model or model name(will downloaded when start)"
-        ),
-        low_vram: bool = Option(True, help="Use low vram mode"),
-        model_dir: Path = Option("./models", help="Directory to store models"),
+    host: str = Option("127.0.0.1"),
+    port: int = Option(4242),
+    device: str = Option("mps", help="Device to use (cuda, cpu or mps)"),
+    model_id: str = Option(
+        "any3", help="Local path to model or model name(will downloaded when start)"
+    ),
+    low_vram: bool = Option(True, help="Use low vram mode"),
+    model_dir: Path = Option("./models", help="Directory to store models"),
 ):
     if not model_dir.exists():
         logger.info(f"create model dir: {model_dir}")

@@ -1,5 +1,7 @@
+import imghdr
 import io
 import random
+from pathlib import Path
 
 import cv2
 import einops
@@ -9,7 +11,25 @@ from PIL import Image, ImageOps
 from loguru import logger
 from pytorch_lightning import seed_everything
 
+from tldream.cldm.model import create_model, load_state_dict
 from tldream.ldm.models.diffusion.ddim import DDIMSampler
+
+current_dir = Path(__file__).parent.absolute().resolve()
+
+
+def init_model(model_path, device):
+    cfg_path = current_dir / "cldm_v15.yaml"
+    model = create_model(str(cfg_path), device).cpu()
+    model.load_state_dict(load_state_dict(model_path, location="cpu"))
+    model = model.to(device)
+    return model
+
+
+def get_image_ext(img_bytes):
+    w = imghdr.what("", img_bytes)
+    if w is None:
+        w = "jpeg"
+    return w
 
 
 def HWC3(x):
@@ -48,8 +68,8 @@ def preprocess_image(image, dst_width, dst_height):
     max_side_length = min(dst_width, dst_height)
     if max(original_h, original_w) > max_side_length:
         k = float(max_side_length) / min(original_h, original_w)
-        new_h = int(original_h*k)
-        new_w = int(original_w*k)
+        new_h = int(original_h * k)
+        new_w = int(original_w * k)
         image = cv2.resize(
             image,
             (new_w, new_h),
@@ -63,7 +83,7 @@ def preprocess_image(image, dst_width, dst_height):
     x = (dst_width - new_w) // 2
     y = (dst_height - new_h) // 2
     # paste image to the center of new_img
-    new_img[y:y+new_h, x:x+new_w, :] = image
+    new_img[y : y + new_h, x : x + new_w, :] = image
 
     return new_img
 
@@ -185,7 +205,7 @@ async def process(
     if low_vram:
         model.low_vram_shift(is_diffusing=True)
 
-    samples, intermediates = await ddim_sampler.sample(
+    samples = await ddim_sampler.sample(
         ddim_steps,
         num_samples,
         shape,
@@ -194,7 +214,7 @@ async def process(
         eta=eta,
         unconditional_guidance_scale=guidance_scale,
         unconditional_conditioning=un_cond,
-        callback=callback,
+        img_callback=callback,
     )
 
     if low_vram:
