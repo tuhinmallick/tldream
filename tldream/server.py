@@ -134,12 +134,16 @@ async def run(
         prompt: str = Form(...),
         negative_prompt: str = Form(""),
         guidance_scale: float = Form(9.0),
+        width: int = Form(512),
+        height: int = Form(512),
 ):
     logger.info({
         "steps": steps,
         "guidance_scale": guidance_scale,
         "prompt": prompt,
         "negative_prompt": negative_prompt,
+        "width": width,
+        "height": height,
     })
     origin_image_bytes = image
     image, alpha_channel, exif = load_img(origin_image_bytes, return_exif=True)
@@ -148,14 +152,16 @@ async def run(
     with lock:
         state.running_state = RunningState.DIFFUSION
         try:
-            rgb_images = await process(
+            res_rgb_img = await process(
                 controlled_model,
                 _device,
                 image,
                 prompt,
                 negative_prompt=negative_prompt,
-                scale=guidance_scale,
+                guidance_scale=guidance_scale,
                 ddim_steps=steps,
+                width=width,
+                height=height,
                 low_vram=_low_vram,
                 callback=diffusion_callback,
             )
@@ -173,7 +179,6 @@ async def run(
             torch_gc()
             await state.reset()
 
-    res_rgb_img = rgb_images[0]
     bytes_io = io.BytesIO(pil_to_bytes(Image.fromarray(res_rgb_img), "jpeg"))
     response = StreamingResponse(bytes_io)
     return response

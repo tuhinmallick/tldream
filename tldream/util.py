@@ -31,22 +31,41 @@ def HWC3(x):
         return y
 
 
-def resize_image(input_image, max_side_length):
-    # keep ratio, resize max side of image to resolution
-    H, W, C = input_image.shape
-    H = float(H)
-    W = float(W)
-    k = float(max_side_length) / min(H, W)
-    H *= k
-    W *= k
-    H = int(np.round(H / 64.0)) * 64
-    W = int(np.round(W / 64.0)) * 64
-    img = cv2.resize(
-        input_image,
-        (W, H),
-        interpolation=cv2.INTER_LANCZOS4 if k > 1 else cv2.INTER_AREA,
-    )
-    return img
+def preprocess_image(image, dst_width, dst_height):
+    """
+
+    Args:
+        image: 前端给到的原始草图，尺寸不固定，可能比 dst_width, dst_height 大，也可能比它们小
+        dst_width: 生成的图片的宽度
+        dst_height: 生成的图片的高度
+
+    Returns:
+        一个尺寸为 (dst_height, dst_width, 3) 的 numpy array
+    """
+    original_h, original_w = image.shape[:2]
+
+    # 图片的长边缩放小于目标尺寸的短边
+    max_side_length = min(dst_width, dst_height)
+    if max(original_h, original_w) > max_side_length:
+        k = float(max_side_length) / min(original_h, original_w)
+        new_h = int(original_h*k)
+        new_w = int(original_w*k)
+        image = cv2.resize(
+            image,
+            (new_w, new_h),
+            interpolation=cv2.INTER_LANCZOS4 if k > 1 else cv2.INTER_AREA,
+        )
+    else:
+        new_h = original_h
+        new_w = original_w
+
+    new_img = np.ones((dst_height, dst_width, 3), dtype=np.uint8) * 255
+    x = (dst_width - new_w) // 2
+    y = (dst_height - new_h) // 2
+    # paste image to the center of new_img
+    new_img[y:y+new_h, x:x+new_w, :] = image
+
+    return new_img
 
 
 def ceil_modulo(x, mod):
@@ -117,9 +136,10 @@ async def process(
     prompt: str,
     negative_prompt: str,
     num_samples: int = 1,
-    max_side_length: int = 512,
     ddim_steps: int = 20,
-    scale: float = 9.0,
+    width: int = 640,
+    height: int = 640,
+    guidance_scale: float = 9.0,
     seed: int = -1,
     eta: float = 0.0,
     low_vram: bool = True,
@@ -129,11 +149,9 @@ async def process(
     ddim_sampler = DDIMSampler(model, device)
     logger.info(f"Original image shape: {input_image.shape}")
     img = HWC3(input_image)
-    # img = resize_image(, max_side_length)
+    img = preprocess_image(img, width, height)
 
-    crop_pad = 16
     original_h, original_w = img.shape[:2]
-    img = img[crop_pad : original_h - crop_pad, crop_pad : original_w - crop_pad]
     img = pad_img_to_modulo(img, 64)
     logger.info(f"Resized image shape: {img.shape}")
     H, W, C = img.shape
@@ -174,7 +192,7 @@ async def process(
         cond,
         verbose=False,
         eta=eta,
-        unconditional_guidance_scale=scale,
+        unconditional_guidance_scale=guidance_scale,
         unconditional_conditioning=un_cond,
         callback=callback,
     )
@@ -192,7 +210,10 @@ async def process(
     )
 
     results = [x_samples[i] for i in range(num_samples)]
-    return results
+    res_rgb_img = results[0]
+    # remove padding
+    res_rgb_img = res_rgb_img[:original_h, :original_w]
+    return res_rgb_img
 
 
 def torch_gc():
