@@ -186,7 +186,7 @@ def start(
     host: str = Option("127.0.0.1"),
     port: int = Option(4242),
     device: str = Option("mps", help="Device to use (cuda, cpu or mps)"),
-    model_id: str = Option(
+    model: str = Option(
         "sd15",
         help="Local path to model or model download link or model name(sd15, any3)",
     ),
@@ -205,8 +205,8 @@ def start(
         enable_sliced_attention()
 
     # TODO: lazy load model after server started to get download progress
-    model_path = get_model_path(model_id, model_dir)
-    logger.info(f"Downloading model {model_id}")
+    model_path = get_model_path(model, model_dir)
+    logger.info(f"Downloading model {model}")
     controlled_model = init_model(model_path, device)
     _device = device
     _low_vram = low_vram
