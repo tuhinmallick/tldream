@@ -1,0 +1,3 @@
+[submodule "tldream-frontend"]
+	path = tldream-frontend
+	url = git@github.com:Sanster/tldream-frontend.git
