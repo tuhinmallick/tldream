@@ -152,6 +152,7 @@ def load_img(img_bytes, gray: bool = False, return_exif: bool = False):
 async def process(
     model,
     device: str,
+    sampler_class,
     input_image: np.ndarray,
     prompt: str,
     negative_prompt: str,
@@ -166,7 +167,7 @@ async def process(
     callback=None,
 ):
     # return rgb image
-    ddim_sampler = DDIMSampler(model, device)
+    sampler = sampler_class(model, device)
     logger.info(f"Original image shape: {input_image.shape}")
     img = HWC3(input_image)
     img = preprocess_image(img, width, height)
@@ -205,7 +206,7 @@ async def process(
     if low_vram:
         model.low_vram_shift(is_diffusing=True)
 
-    samples = await ddim_sampler.sample(
+    samples = await sampler.sample(
         ddim_steps,
         num_samples,
         shape,

@@ -1,7 +1,10 @@
 import io
 import os
+
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import threading
 import time
+from enum import Enum
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -16,8 +19,21 @@ from torch.hub import download_url_to_file
 from typer import Typer, Option
 
 from tldream.cldm.hack import disable_verbosity, enable_sliced_attention
+from tldream.ldm.models.diffusion.uni_pc import UniPCSampler
+from tldream.ldm.models.diffusion.ddim import DDIMSampler
 from tldream.socket_manager import SocketManager
 from tldream.util import process, load_img, torch_gc, pil_to_bytes, init_model
+
+
+class Sampler(str, Enum):
+    UNI_PC = "uni_pc"
+    DDIM = "ddim"
+
+
+all_sampler = {
+    Sampler.UNI_PC: UniPCSampler,
+    Sampler.DDIM: DDIMSampler,
+}
 
 disable_verbosity()
 current_dir = Path(__file__).parent.absolute().resolve()
@@ -96,6 +112,7 @@ async def run(
             res_rgb_img = await process(
                 controlled_model,
                 _device,
+                UniPCSampler,
                 image,
                 prompt,
                 negative_prompt=negative_prompt,
@@ -163,6 +180,7 @@ def start(
     model_id: str = Option(
         "any3", help="Local path to model or model name(will downloaded when start)"
     ),
+    sampler: str = Option("uni_pc", help="Sampler to use"),
     low_vram: bool = Option(True, help="Use low vram mode"),
     model_dir: Path = Option("./models", help="Directory to store models"),
 ):
@@ -172,6 +190,7 @@ def start(
     global controlled_model
     global _device
     global _low_vram
+    global _sampler
     if low_vram:
         enable_sliced_attention()
 
@@ -180,6 +199,7 @@ def start(
     controlled_model = init_model(model_path, device)
     _device = device
     _low_vram = low_vram
+    _sampler = sampler
     uvicorn.run(app, host=host, port=port)
 
 
