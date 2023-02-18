@@ -1,6 +1,8 @@
 import io
 import os
 
+from starlette.staticfiles import StaticFiles
+
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import threading
 import time
@@ -23,6 +25,7 @@ from tldream.ldm.models.diffusion.uni_pc import UniPCSampler
 from tldream.ldm.models.diffusion.ddim import DDIMSampler
 from tldream.socket_manager import SocketManager
 from tldream.util import process, load_img, torch_gc, pil_to_bytes, init_model
+from tldream._version import __version__
 
 
 class Sampler(str, Enum):
@@ -39,7 +42,6 @@ disable_verbosity()
 current_dir = Path(__file__).parent.absolute().resolve()
 
 app = FastAPI()
-sio = SocketManager(app=app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -47,10 +49,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-web_static_folder = os.path.join("app/build", "static")
-# app.mount("/static", StaticFiles(directory=web_static_folder), name="static")
+web_static_folder = os.path.join(current_dir, "out")
+app.mount("/static", StaticFiles(directory=web_static_folder), name="static")
+sio = SocketManager(app=app)
 
-typer_app = Typer(add_completion=False, pretty_exceptions_show_locals=False)
+typer_app = Typer(
+    add_completion=False,
+    pretty_exceptions_show_locals=False,
+)
 
 controlled_model = None
 _device = "cpu"
@@ -80,7 +86,7 @@ async def handle_leave(sid, *args, **kwargs):
 
 
 @app.get("/")
-async def main():
+async def root():
     return FileResponse(os.path.join(web_static_folder, "index.html"))
 
 
@@ -194,6 +200,7 @@ def start(
     low_vram: bool = Option(True, help="Use low vram mode"),
     model_dir: Path = Option("./models", help="Directory to store models"),
 ):
+    logger.info(f"tldream {__version__}")
     if not model_dir.exists():
         logger.info(f"create model dir: {model_dir}")
         model_dir.mkdir(parents=True, exist_ok=True)

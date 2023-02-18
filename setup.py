@@ -1,7 +1,11 @@
+import os
+import re
+
 import setuptools
 from pathlib import Path
 
-web_files = Path("./app/build/").glob("**/*")
+web_files = Path("tldream/out").glob("**/*")
+web_files = [str(it).replace("tldream/", "") for it in web_files]
 
 
 with open("README.md", "r", encoding="utf-8") as fh:
@@ -16,6 +20,25 @@ def load_requirements():
             if line:
                 requires.append(line.strip())
     return requires
+
+
+PKG = "tldream"
+VERSIONFILE = os.path.join(PKG, "_version.py")
+verstr = "unknown"
+try:
+    verstrline = open(VERSIONFILE, "rt").read()
+except EnvironmentError:
+    pass  # Okay, there is no version file.
+else:
+    VSRE = r"^verstr = ['\"]([^'\"]*)['\"]"
+    mo = re.search(VSRE, verstrline, re.M)
+    if mo:
+        verstr = mo.group(1)
+    else:
+        print(f"unable to find version in {VERSIONFILE}")
+        raise RuntimeError(
+            f"if {VERSIONFILE}.py exists, it is required to be well-formed"
+        )
 
 
 # https://setuptools.readthedocs.io/en/latest/setuptools.html#including-data-files
