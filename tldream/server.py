@@ -144,19 +144,27 @@ async def run(
 
 PRE_DEFINE_MODELS = {
     "sd15": "https://huggingface.co/lllyasviel/ControlNet/resolve/main/models/control_sd15_scribble.pth",
-    "any3": "/Users/cwq/code/github/ControlNet/models/control_any3_better_scribble.pth",
+    "any3": "https://huggingface.co/toyxyz/Control_any3/resolve/main/control_any3_scribble.pth",
 }
 
 
 def get_model_path(model_name, save_dir):
     if os.path.exists(model_name):
         return model_name
-    if model_name in PRE_DEFINE_MODELS:
-        model_p = PRE_DEFINE_MODELS[model_name]
-        if os.path.exists(model_p):
-            return model_p
 
-        url = model_p
+    if not model_name.startswith("http"):
+        if model_name in PRE_DEFINE_MODELS:
+            url = PRE_DEFINE_MODELS[model_name]
+        else:
+            raise ValueError(
+                f"model {model_name} is invalid, available models: {list(PRE_DEFINE_MODELS.keys())}"
+            )
+
+    url = model_name
+    if os.path.exists(url):
+        return url
+
+    if url.startswith("http"):
         parts = urlparse(url)
         filename = os.path.basename(parts.path)
         dst_p = str(save_dir / filename)
@@ -165,8 +173,9 @@ def get_model_path(model_name, save_dir):
             return dst_p
 
         logger.info(f"Downloading {filename} to {save_dir.absolute()}")
-        download_url_to_file(model_p, dst_p, progress=True)
+        download_url_to_file(url, dst_p, progress=True)
         return dst_p
+
     raise ValueError(
         f"model {model_name} is invalid, available models: {list(PRE_DEFINE_MODELS.keys())}"
     )
@@ -178,7 +187,8 @@ def start(
     port: int = Option(4242),
     device: str = Option("mps", help="Device to use (cuda, cpu or mps)"),
     model_id: str = Option(
-        "any3", help="Local path to model or model name(will downloaded when start)"
+        "sd15",
+        help="Local path to model or model download link or model name(sd15, any3)",
     ),
     sampler: str = Option("uni_pc", help="Sampler to use"),
     low_vram: bool = Option(True, help="Use low vram mode"),
@@ -196,6 +206,7 @@ def start(
 
     # TODO: lazy load model after server started to get download progress
     model_path = get_model_path(model_id, model_dir)
+    logger.info(f"Downloading model {model_id}")
     controlled_model = init_model(model_path, device)
     _device = device
     _low_vram = low_vram
