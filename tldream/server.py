@@ -158,6 +158,7 @@ def get_model_path(model_name, save_dir):
     if os.path.exists(model_name):
         return model_name
 
+    url = model_name
     if not model_name.startswith("http"):
         if model_name in PRE_DEFINE_MODELS:
             url = PRE_DEFINE_MODELS[model_name]
@@ -165,10 +166,6 @@ def get_model_path(model_name, save_dir):
             raise ValueError(
                 f"model {model_name} is invalid, available models: {list(PRE_DEFINE_MODELS.keys())}"
             )
-
-    url = model_name
-    if os.path.exists(url):
-        return url
 
     if url.startswith("http"):
         parts = urlparse(url)
@@ -189,9 +186,9 @@ def get_model_path(model_name, save_dir):
 
 @typer_app.command()
 def start(
-    host: str = Option("127.0.0.1"),
+    listen: bool = Option(False, help="If true, start server at 0.0.0.0"),
     port: int = Option(4242),
-    device: str = Option("mps", help="Device to use (cuda, cpu or mps)"),
+    device: str = Option("cuda", help="Device to use (cuda, cpu or mps)"),
     model: str = Option(
         "sd15",
         help="Local path to model or model download link or model name(sd15, any3)",
@@ -218,6 +215,8 @@ def start(
     _device = device
     _low_vram = low_vram
     _sampler = sampler
+
+    host = "0.0.0.0" if listen else "127.0.0.1"
     uvicorn.run(app, host=host, port=port)
 
 

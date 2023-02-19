@@ -4,7 +4,6 @@ from torch.utils.checkpoint import checkpoint
 
 from transformers import T5Tokenizer, T5EncoderModel, CLIPTokenizer, CLIPTextModel
 
-import open_clip
 from tldream.ldm.util import default, count_params
 
 
@@ -144,6 +143,7 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
                  freeze=True, layer="last"):
         super().__init__()
         assert layer in self.LAYERS
+        import open_clip
         model, _, _ = open_clip.create_model_and_transforms(arch, device=torch.device('cpu'), pretrained=version)
         del model.visual
         self.model = model
@@ -166,6 +166,7 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
             param.requires_grad = False
 
     def forward(self, text):
+        import open_clip
         tokens = open_clip.tokenize(text)
         z = self.encode_with_transformer(tokens.to(self.device))
         return z
