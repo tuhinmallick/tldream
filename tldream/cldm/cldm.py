@@ -11,7 +11,6 @@ from tldream.ldm.modules.diffusionmodules.util import (
 )
 
 from einops import rearrange, repeat
-from torchvision.utils import make_grid
 from tldream.ldm.modules.attention import SpatialTransformer
 from tldream.ldm.modules.diffusionmodules.openaimodel import UNetModel, TimestepEmbedSequential, ResBlock, Downsample, AttentionBlock
 from tldream.ldm.models.diffusion.ddpm import LatentDiffusion

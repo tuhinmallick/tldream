@@ -16,7 +16,6 @@ from contextlib import contextmanager, nullcontext
 from functools import partial
 import itertools
 from tqdm import tqdm
-from torchvision.utils import make_grid
 from pytorch_lightning.utilities.distributed import rank_zero_only
 from omegaconf import ListConfig
 
@@ -470,7 +469,7 @@ class DDPM(pl.LightningModule):
         n_imgs_per_row = len(samples)
         denoise_grid = rearrange(samples, 'n b c h w -> b n c h w')
         denoise_grid = rearrange(denoise_grid, 'b n c h w -> (b n) c h w')
-        denoise_grid = make_grid(denoise_grid, nrow=n_imgs_per_row)
+        # denoise_grid = make_grid(denoise_grid, nrow=n_imgs_per_row)
         return denoise_grid
 
     @torch.no_grad()
