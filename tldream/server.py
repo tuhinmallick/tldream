@@ -196,7 +196,7 @@ def start(
         "sd15",
         help="Local path to model or model download link or model name(sd15, any3)",
     ),
-    sampler: Sampler = Option("uni_pc", help="Sampler to use"),
+    sampler: Sampler = Option("ddim", help="Sampler to use"),
     low_vram: bool = Option(True, help="Use low vram mode"),
     no_half: bool = Option(False, help="Not use float16 mode"),
     model_dir: Path = Option("./models", help="Directory to store models"),
