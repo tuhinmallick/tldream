@@ -205,7 +205,8 @@ def normalization(channels):
     :param channels: number of input channels.
     :return: an nn.Module for normalization.
     """
-    return GroupNorm32(32, channels)
+    return nn.GroupNorm(32, channels)
+    # return GroupNorm32(32, channels)
 
 
 # PyTorch 1.7 has SiLU, but we support PyTorch 1.5.
@@ -264,7 +265,9 @@ class HybridConditioner(nn.Module):
         return {'c_concat': [c_concat], 'c_crossattn': [c_crossattn]}
 
 
-def noise_like(shape, device, repeat=False):
-    repeat_noise = lambda: torch.randn((1, *shape[1:]), device=device).repeat(shape[0], *((1,) * (len(shape) - 1)))
-    noise = lambda: torch.randn(shape, device=device)
+def noise_like(x, device, repeat=False):
+    shape = x.shape
+    dtype = x.dtype
+    repeat_noise = lambda: torch.randn((1, *shape[1:]), device=device, dtype=dtype).repeat(shape[0], *((1,) * (len(shape) - 1)))
+    noise = lambda: torch.randn(shape, device=device, dtype=dtype)
     return repeat_noise() if repeat else noise()

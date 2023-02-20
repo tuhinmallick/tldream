@@ -61,6 +61,8 @@ typer_app = Typer(
 controlled_model = None
 _device = "cpu"
 _low_vram = False
+_sampler = "uni_pc"
+_torch_dtype = torch.float32
 
 
 lock = threading.Lock()
@@ -118,7 +120,8 @@ async def run(
             res_rgb_img = await process(
                 controlled_model,
                 _device,
-                UniPCSampler,
+                _torch_dtype,
+                all_sampler[_sampler],
                 image,
                 prompt,
                 negative_prompt=negative_prompt,
@@ -193,8 +196,9 @@ def start(
         "sd15",
         help="Local path to model or model download link or model name(sd15, any3)",
     ),
-    sampler: str = Option("uni_pc", help="Sampler to use"),
+    sampler: Sampler = Option("uni_pc", help="Sampler to use"),
     low_vram: bool = Option(True, help="Use low vram mode"),
+    no_half: bool = Option(False, help="Not use float16 mode"),
     model_dir: Path = Option("./models", help="Directory to store models"),
 ):
     logger.info(f"tldream {__version__}")
@@ -205,13 +209,20 @@ def start(
     global _device
     global _low_vram
     global _sampler
+    global _torch_dtype
     if low_vram:
         enable_sliced_attention()
 
     # TODO: lazy load model after server started to get download progress
     model_path = get_model_path(model, model_dir)
-    logger.info(f"Downloading model {model}")
-    controlled_model = init_model(model_path, device)
+    controlled_model = init_model(model_path, device).eval()
+    if device == "cuda":
+        _torch_dtype = torch.float32 if no_half else torch.float16
+
+    controlled_model = controlled_model.to(_torch_dtype)
+    controlled_model.model.diffusion_model = controlled_model.model.diffusion_model.to(
+        _torch_dtype
+    )
     _device = device
     _low_vram = low_vram
     _sampler = sampler

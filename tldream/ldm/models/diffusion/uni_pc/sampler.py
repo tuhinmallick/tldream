@@ -6,15 +6,17 @@ from .uni_pc import NoiseScheduleVP, model_wrapper, UniPC
 
 
 class UniPCSampler(object):
-    def __init__(self, model, device, **kwargs):
+    def __init__(self, model, device, torch_dtype, **kwargs):
         super().__init__()
         self.model = model
         self.device = device
-        to_torch = lambda x: x.clone().detach().to(torch.float32).to(self.device)
+        self.torch_dtype = torch_dtype
+        to_torch = lambda x: x.clone().detach().to(torch_dtype).to(self.device)
         self.register_buffer("alphas_cumprod", to_torch(model.alphas_cumprod))
 
     def register_buffer(self, name, attr):
         if type(attr) == torch.Tensor:
+            attr = attr.to(self.torch_dtype)
             attr = attr.to(torch.device(self.device))
         setattr(self, name, attr)
 
@@ -47,19 +49,26 @@ class UniPCSampler(object):
         if conditioning is not None:
             if isinstance(conditioning, dict):
                 ctmp = conditioning[list(conditioning.keys())[0]]
-                while isinstance(ctmp, list): ctmp = ctmp[0]
+                while isinstance(ctmp, list):
+                    ctmp = ctmp[0]
                 cbs = ctmp.shape[0]
                 if cbs != batch_size:
-                    print(f"Warning: Got {cbs} conditionings but batch-size is {batch_size}")
+                    print(
+                        f"Warning: Got {cbs} conditionings but batch-size is {batch_size}"
+                    )
 
             elif isinstance(conditioning, list):
                 for ctmp in conditioning:
                     if ctmp.shape[0] != batch_size:
-                        print(f"Warning: Got {cbs} conditionings but batch-size is {batch_size}")
+                        print(
+                            f"Warning: Got {cbs} conditionings but batch-size is {batch_size}"
+                        )
 
             else:
                 if conditioning.shape[0] != batch_size:
-                    print(f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}")
+                    print(
+                        f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}"
+                    )
 
         # sampling
         C, H, W = shape
@@ -91,7 +100,7 @@ class UniPCSampler(object):
             method="multistep",
             order=3,
             lower_order_final=True,
-            img_callback=img_callback
+            img_callback=img_callback,
         )
 
         return x.to(device)

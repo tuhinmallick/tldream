@@ -152,6 +152,7 @@ def load_img(img_bytes, gray: bool = False, return_exif: bool = False):
 async def process(
     model,
     device: str,
+    torch_dtype,
     sampler_class,
     input_image: np.ndarray,
     prompt: str,
@@ -167,7 +168,7 @@ async def process(
     callback=None,
 ):
     # return rgb image
-    sampler = sampler_class(model, device)
+    sampler = sampler_class(model, device, torch_dtype)
     logger.info(f"Original image shape: {input_image.shape}")
     img = HWC3(input_image)
     img = preprocess_image(img, width, height)
@@ -180,7 +181,7 @@ async def process(
     detected_map = np.zeros_like(img, dtype=np.uint8)
     detected_map[np.min(img, axis=2) < 127] = 255
 
-    control = torch.from_numpy(detected_map.copy()).float().to(device) / 255.0
+    control = torch.from_numpy(detected_map.copy()).to(torch_dtype).to(device) / 255.0
     control = torch.stack([control for _ in range(num_samples)], dim=0)
     control = einops.rearrange(control, "b h w c -> b c h w").clone()
 

@@ -19,16 +19,16 @@ from tldream.ldm.models.diffusion.ddim import DDIMSampler
 
 
 class ControlledUnetModel(UNetModel):
+    @torch.no_grad()
     def forward(self, x, timesteps=None, context=None, control=None, only_mid_control=False, **kwargs):
         hs = []
-        with torch.no_grad():
-            t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
-            emb = self.time_embed(t_emb)
-            h = x.type(self.dtype)
-            for module in self.input_blocks:
-                h = module(h, emb, context)
-                hs.append(h)
-            h = self.middle_block(h, emb, context)
+        t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False).to(x.dtype)
+        emb = self.time_embed(t_emb)
+        h = x.type(x.dtype)
+        for module in self.input_blocks:
+            h = module(h, emb, context)
+            hs.append(h)
+        h = self.middle_block(h, emb, context)
 
         h += control.pop()
 
@@ -57,7 +57,6 @@ class ControlNet(nn.Module):
         conv_resample=True,
         dims=2,
         use_checkpoint=False,
-        use_fp16=False,
         num_heads=-1,
         num_head_channels=-1,
         num_heads_upsample=-1,
@@ -120,7 +119,6 @@ class ControlNet(nn.Module):
         self.channel_mult = channel_mult
         self.conv_resample = conv_resample
         self.use_checkpoint = use_checkpoint
-        self.dtype = th.float16 if use_fp16 else th.float32
         self.num_heads = num_heads
         self.num_head_channels = num_head_channels
         self.num_heads_upsample = num_heads_upsample
@@ -279,15 +277,16 @@ class ControlNet(nn.Module):
     def make_zero_conv(self, channels):
         return TimestepEmbedSequential(zero_module(conv_nd(self.dims, channels, channels, 1, padding=0)))
 
+    @torch.no_grad()
     def forward(self, x, hint, timesteps, context, **kwargs):
-        t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
+        t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False).to(x.dtype)
         emb = self.time_embed(t_emb)
 
         guided_hint = self.input_hint_block(hint, emb, context)
 
         outs = []
 
-        h = x.type(self.dtype)
+        h = x.type(x.dtype)
         for module, zero_conv in zip(self.input_blocks, self.zero_convs):
             if guided_hint is not None:
                 h = module(h, emb, context)

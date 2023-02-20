@@ -771,7 +771,7 @@ class UNetModel(nn.Module):
             assert y.shape[0] == x.shape[0]
             emb = emb + self.label_emb(y)
 
-        h = x.type(self.dtype)
+        h = x.type(x.dtype)
         for module in self.input_blocks:
             h = module(h, emb, context)
             hs.append(h)

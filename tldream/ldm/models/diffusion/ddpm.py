@@ -325,7 +325,7 @@ class DDPM(pl.LightningModule):
     def p_sample(self, x, t, clip_denoised=True, repeat_noise=False):
         b, *_, device = *x.shape, x.device
         model_mean, _, model_log_variance = self.p_mean_variance(x=x, t=t, clip_denoised=clip_denoised)
-        noise = noise_like(x.shape, device, repeat_noise)
+        noise = noise_like(x, device, repeat_noise)
         # no noise when t == 0
         nonzero_mask = (1 - (t == 0).float()).reshape(b, *((1,) * (len(x.shape) - 1)))
         return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
@@ -967,7 +967,7 @@ class LatentDiffusion(DDPM):
         else:
             model_mean, _, model_log_variance = outputs
 
-        noise = noise_like(x.shape, device, repeat_noise) * temperature
+        noise = noise_like(x, device, repeat_noise) * temperature
         if noise_dropout > 0.:
             noise = torch.nn.functional.dropout(noise, p=noise_dropout)
         # no noise when t == 0
