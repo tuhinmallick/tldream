@@ -474,9 +474,8 @@ class UniPC:
         """
         noise = self.noise_prediction_fn(x, t)
         dims = x.dim()
-        alpha_t, sigma_t = self.noise_schedule.marginal_alpha(
-            t
-        ), self.noise_schedule.marginal_std(t)
+        alpha_t = self.noise_schedule.marginal_alpha(t).to(x.dtype)
+        sigma_t = self.noise_schedule.marginal_std(t).to(x.dtype)
         x0 = (x - expand_dims(sigma_t, dims) * noise) / expand_dims(alpha_t, dims)
         if self.thresholding:
             p = 0.995  # A hyperparameter in the paper of "Imagen" [1].
@@ -731,14 +730,14 @@ class UniPC:
 
         # first compute rks
         t_prev_0 = t_prev_list[-1]
-        lambda_prev_0 = ns.marginal_lambda(t_prev_0)
-        lambda_t = ns.marginal_lambda(t)
+        lambda_prev_0 = ns.marginal_lambda(t_prev_0).to(x.dtype)
+        lambda_t = ns.marginal_lambda(t).to(x.dtype)
         model_prev_0 = model_prev_list[-1]
-        sigma_prev_0, sigma_t = ns.marginal_std(t_prev_0), ns.marginal_std(t)
+        sigma_prev_0, sigma_t = ns.marginal_std(t_prev_0).to(x.dtype), ns.marginal_std(t).to(x.dtype)
         log_alpha_prev_0, log_alpha_t = ns.marginal_log_mean_coeff(
             t_prev_0
-        ), ns.marginal_log_mean_coeff(t)
-        alpha_t = torch.exp(log_alpha_t)
+        ).to(x.dtype), ns.marginal_log_mean_coeff(t).to(x.dtype)
+        alpha_t = torch.exp(log_alpha_t).to(x.dtype)
 
         h = lambda_t - lambda_prev_0
 
@@ -747,13 +746,13 @@ class UniPC:
         for i in range(1, order):
             t_prev_i = t_prev_list[-(i + 1)]
             model_prev_i = model_prev_list[-(i + 1)]
-            lambda_prev_i = ns.marginal_lambda(t_prev_i)
+            lambda_prev_i = ns.marginal_lambda(t_prev_i).to(x.dtype)
             rk = ((lambda_prev_i - lambda_prev_0) / h)[0]
             rks.append(rk)
             D1s.append((model_prev_i - model_prev_0) / rk)
 
         rks.append(1.0)
-        rks = torch.tensor(rks, device=x.device)
+        rks = torch.tensor(rks, device=x.device, dtype=x.dtype)
 
         R = []
         b = []
@@ -778,7 +777,7 @@ class UniPC:
             h_phi_k = h_phi_k / hh - 1 / factorial_i
 
         R = torch.stack(R)
-        b = torch.tensor(b, device=x.device)
+        b = torch.tensor(b, device=x.device, dtype=x.dtype)
 
         # now predictor
         use_predictor = len(D1s) > 0 and x_t is None
@@ -787,9 +786,9 @@ class UniPC:
             if x_t is None:
                 # for order 2, we use a simplified version
                 if order == 2:
-                    rhos_p = torch.tensor([0.5], device=b.device)
+                    rhos_p = torch.tensor([0.5], device=b.device, dtype=b.dtype)
                 else:
-                    rhos_p = torch.linalg.solve(R[:-1, :-1], b[:-1])
+                    rhos_p = torch.linalg.solve(R[:-1, :-1].float(), b[:-1].float()).to(x.dtype)
         else:
             D1s = None
 
@@ -797,9 +796,9 @@ class UniPC:
             # print("using corrector")
             # for order 1, we use a simplified version
             if order == 1:
-                rhos_c = torch.tensor([0.5], device=b.device)
+                rhos_c = torch.tensor([0.5], device=b.device, dtype=b.dtype)
             else:
-                rhos_c = torch.linalg.solve(R, b)
+                rhos_c = torch.linalg.solve(R.float(), b.float()).to(x.dtype)
 
         model_t = None
         if self.predict_x0:
@@ -874,7 +873,7 @@ class UniPC:
             steps = max(steps, order)
             timesteps = self.get_time_steps(
                 skip_type=skip_type, t_T=t_T, t_0=t_0, N=steps, device=device
-            )
+            ).to(x.dtype)
             assert timesteps.shape[0] - 1 == steps
 
             iterator = tqdm(desc="UniPC Sampler", total=steps)
