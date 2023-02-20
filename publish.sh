@@ -10,6 +10,6 @@ popd
 rm -r ./tldream/out
 cp -r ./tldream-frontend/apps/www/out ./tldream/out
 
-rm -r -f dist
+rm -r -f dist build
 python3 setup.py sdist bdist_wheel
 twine upload dist/*
