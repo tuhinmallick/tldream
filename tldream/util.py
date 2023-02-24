@@ -67,7 +67,7 @@ def preprocess_image(image, dst_width, dst_height):
     # 图片的长边缩放小于目标尺寸的短边
     max_side_length = min(dst_width, dst_height)
     if max(original_h, original_w) > max_side_length:
-        k = float(max_side_length) / min(original_h, original_w)
+        k = float(max_side_length) / max(original_h, original_w)
         new_h = int(original_h * k)
         new_w = int(original_w * k)
         image = cv2.resize(
