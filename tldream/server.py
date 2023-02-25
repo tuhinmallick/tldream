@@ -61,7 +61,6 @@ typer_app = Typer(
 controlled_model = None
 _device = "cpu"
 _low_vram = False
-_sampler = "uni_pc"
 _torch_dtype = torch.float32
 
 
@@ -96,6 +95,7 @@ async def root():
 async def run(
     image: bytes = File(...),
     steps: int = Form(20),
+    sampler: str = Form(...),
     prompt: str = Form(...),
     negative_prompt: str = Form(""),
     guidance_scale: float = Form(9.0),
@@ -121,7 +121,7 @@ async def run(
                 controlled_model,
                 _device,
                 _torch_dtype,
-                all_sampler[_sampler],
+                all_sampler[sampler],
                 image,
                 prompt,
                 negative_prompt=negative_prompt,
@@ -196,7 +196,6 @@ def start(
         "sd15",
         help="Local path to model or model download link or model name(sd15, any3)",
     ),
-    sampler: Sampler = Option("ddim", help="Sampler to use"),
     low_vram: bool = Option(True, help="Use low vram mode"),
     no_half: bool = Option(False, help="Not use float16 mode"),
     model_dir: Path = Option("./models", help="Directory to store models"),
@@ -208,7 +207,6 @@ def start(
     global controlled_model
     global _device
     global _low_vram
-    global _sampler
     global _torch_dtype
     if low_vram:
         enable_sliced_attention()
@@ -225,7 +223,6 @@ def start(
     )
     _device = device
     _low_vram = low_vram
-    _sampler = sampler
 
     host = "0.0.0.0" if listen else "127.0.0.1"
     uvicorn.run(app, host=host, port=port)
