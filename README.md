@@ -29,7 +29,6 @@ tldream --device cuda
 │ --model                         TEXT           Local path to model or model download link or model   │
 │                                                name(sd15, any3)                                      │
 │                                                [default: sd15]                                       │
-│ --sampler                       [uni_pc|ddim]  Sampler to use [default: ddim]                        │
 │ --low-vram     --no-low-vram                   Use low vram mode [default: low-vram]                 │
 │ --no-half      --no-no-half                    Not use float16 mode [default: no-no-half]            │
 │ --model-dir                     PATH           Directory to store models [default: ./models]         │
