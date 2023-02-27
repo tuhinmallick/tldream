@@ -152,8 +152,8 @@ async def run(
 
 
 PRE_DEFINE_MODELS = {
-    "sd15": "https://huggingface.co/lllyasviel/ControlNet/resolve/main/models/control_sd15_scribble.pth",
-    "any3": "https://huggingface.co/toyxyz/Control_any3/resolve/main/control_any3_scribble.pth",
+    "sd15": "https://huggingface.co/Sanster/tldream/resolve/main/control_sd15_scribble_fp16.safetensors",
+    "any3": "https://huggingface.co/Sanster/tldream/resolve/main/control_any3_better_scribble_fp16.safetensors",
 }
 
 

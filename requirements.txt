@@ -14,3 +14,4 @@ typer
 rich
 loguru
 python-socketio
+safetensors
