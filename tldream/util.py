@@ -15,15 +15,21 @@ from diffusers.utils import is_xformers_available
 current_dir = Path(__file__).parent.absolute().resolve()
 
 
-def init_pipe(model_id, device, torch_dtype, cpu_offload):
+def init_pipe(model_id, device, torch_dtype, cpu_offload, nsfw_filter):
     from diffusers import StableDiffusionControlNetPipeline, ControlNetModel
+
     logger.info(f"Loading model: {model_id}")
 
     controlnet = ControlNetModel.from_pretrained(
         "lllyasviel/sd-controlnet-scribble", torch_dtype=torch_dtype
     )
+
+    kwargs = {}
+    if not nsfw_filter:
+        kwargs.update({"safety_checker": None})
+
     pipe = StableDiffusionControlNetPipeline.from_pretrained(
-        model_id, controlnet=controlnet, torch_dtype=torch_dtype
+        model_id, controlnet=controlnet, torch_dtype=torch_dtype, **kwargs
     )
     pipe.enable_attention_slicing()
 

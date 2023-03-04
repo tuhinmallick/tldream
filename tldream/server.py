@@ -137,6 +137,7 @@ def start(
     ),
     low_vram: bool = Option(False, help="Use low vram mode"),
     no_half: bool = Option(False, help="Not use float16 mode"),
+    nsfw_filter: bool = Option(True)
 ):
     from diffusers.utils import DIFFUSERS_CACHE
 
@@ -154,6 +155,7 @@ def start(
         device,
         torch_dtype=torch_dtype,
         cpu_offload=low_vram and device == "cuda",
+        nsfw_filter=nsfw_filter
     )
     if listen:
         host = "0.0.0.0"
