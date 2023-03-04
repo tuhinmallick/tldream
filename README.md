@@ -1,4 +1,10 @@
-<h1 align="center">tldream</h1>
+<p align="center">
+<div align="center">
+  <img height=96 src="https://user-images.githubusercontent.com/3998421/222906944-40a06042-e6d5-48f5-905e-b635469e7005.svg"/> 
+  <h1>tldream</h1>
+</div>
+</p>
+
 <p align="center">A tiny little diffusion drawing app</p>
 
 <p align="center">
