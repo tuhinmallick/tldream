@@ -15,7 +15,7 @@ from diffusers.utils import is_xformers_available
 current_dir = Path(__file__).parent.absolute().resolve()
 
 
-def init_pipe(model_id, device, torch_dtype, cpu_offload, nsfw_filter):
+def init_pipe(model_id, device, torch_dtype, cpu_offload=False, nsfw_filter=True):
     from diffusers import StableDiffusionControlNetPipeline, ControlNetModel
 
     logger.info(f"Loading model: {model_id}")
