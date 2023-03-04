@@ -1,3 +1,4 @@
+import asyncio
 import io
 import os
 
@@ -6,7 +7,6 @@ from starlette.staticfiles import StaticFiles
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import threading
 import time
-from enum import Enum
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -20,25 +20,11 @@ from starlette.responses import FileResponse, StreamingResponse
 from torch.hub import download_url_to_file
 from typer import Typer, Option
 
-from tldream.cldm.hack import disable_verbosity, enable_sliced_attention
-from tldream.ldm.models.diffusion.uni_pc import UniPCSampler
-from tldream.ldm.models.diffusion.ddim import DDIMSampler
 from tldream.socket_manager import SocketManager
-from tldream.util import process, load_img, torch_gc, pil_to_bytes, init_model
+from tldream.util import process, load_img, torch_gc, pil_to_bytes, init_pipe
 from tldream._version import __version__
 
 
-class Sampler(str, Enum):
-    UNI_PC = "uni_pc"
-    DDIM = "ddim"
-
-
-all_sampler = {
-    Sampler.UNI_PC: UniPCSampler,
-    Sampler.DDIM: DDIMSampler,
-}
-
-disable_verbosity()
 current_dir = Path(__file__).parent.absolute().resolve()
 
 app = FastAPI()
@@ -59,19 +45,11 @@ typer_app = Typer(
 )
 
 controlled_model = None
-_device = "cpu"
-_low_vram = False
-_torch_dtype = torch.float32
-
-
 lock = threading.Lock()
 
 
-async def diffusion_callback(pred_i, step_i):
-    # TODO: visual latent Tensor [1, 4, 64, 64]
-    # pred_i = pred_i.squeeze(0).detch().cpu().numpy().transpose(1, 2, 0)
-    # pred_i = (pred_i * 255).astype(np.uint8)
-    await sio.emit("progress", {"step": step_i})
+def diffusion_callback(step: int, timestep: int, latents: torch.FloatTensor):
+    asyncio.run(sio.emit("progress", {"step": step}))
 
 
 @sio.on("join")
@@ -92,7 +70,7 @@ async def root():
 
 
 @app.post("/run")
-async def run(
+def run(
     image: bytes = File(...),
     steps: int = Form(20),
     sampler: str = Form(...),
@@ -117,19 +95,16 @@ async def run(
     start = time.time()
     with lock:
         try:
-            res_rgb_img = await process(
+            res_rgb_img = process(
                 controlled_model,
-                _device,
-                _torch_dtype,
-                all_sampler[sampler],
+                sampler,
                 image,
                 prompt,
                 negative_prompt=negative_prompt,
                 guidance_scale=guidance_scale,
-                ddim_steps=steps,
+                steps=steps,
                 width=width,
                 height=height,
-                low_vram=_low_vram,
                 callback=diffusion_callback,
             )
 
@@ -144,47 +119,11 @@ async def run(
         finally:
             logger.info(f"process time: {(time.time() - start) * 1000}ms")
             torch_gc()
-            await sio.emit("finish")
+            asyncio.run(sio.emit("finish"))
 
     bytes_io = io.BytesIO(pil_to_bytes(Image.fromarray(res_rgb_img), "jpeg"))
     response = StreamingResponse(bytes_io)
     return response
-
-
-PRE_DEFINE_MODELS = {
-    "sd15": "https://huggingface.co/Sanster/tldream/resolve/main/control_sd15_scribble_fp16.safetensors",
-    "any3": "https://huggingface.co/Sanster/tldream/resolve/main/control_any3_better_scribble_fp16.safetensors",
-}
-
-
-def get_model_path(model_name, save_dir):
-    if os.path.exists(model_name):
-        return model_name
-
-    url = model_name
-    if not model_name.startswith("http"):
-        if model_name in PRE_DEFINE_MODELS:
-            url = PRE_DEFINE_MODELS[model_name]
-        else:
-            raise ValueError(
-                f"model {model_name} is invalid, available models: {list(PRE_DEFINE_MODELS.keys())}"
-            )
-
-    if url.startswith("http"):
-        parts = urlparse(url)
-        filename = os.path.basename(parts.path)
-        dst_p = str(save_dir / filename)
-        if os.path.exists(dst_p):
-            logger.info(f"Loading model from: {dst_p}")
-            return dst_p
-
-        logger.info(f"Downloading {filename} to {save_dir.absolute()}")
-        download_url_to_file(url, dst_p, progress=True)
-        return dst_p
-
-    raise ValueError(
-        f"model {model_name} is invalid, available models: {list(PRE_DEFINE_MODELS.keys())}"
-    )
 
 
 @typer_app.command()
@@ -193,37 +132,29 @@ def start(
     port: int = Option(4242),
     device: str = Option("cuda", help="Device to use (cuda, cpu or mps)"),
     model: str = Option(
-        "sd15",
-        help="Local path to model or model download link or model name(sd15, any3)",
+        "runwayml/stable-diffusion-v1-5",
+        help="Any HuggingFace Stable Diffusion model id",
     ),
-    low_vram: bool = Option(True, help="Use low vram mode"),
+    low_vram: bool = Option(False, help="Use low vram mode"),
     no_half: bool = Option(False, help="Not use float16 mode"),
-    model_dir: Path = Option("./models", help="Directory to store models"),
 ):
+    from diffusers.utils import DIFFUSERS_CACHE
+
     logger.info(f"tldream {__version__}")
-    if not model_dir.exists():
-        logger.info(f"create model dir: {model_dir}")
-        model_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Model cache dir: {DIFFUSERS_CACHE}")
+
     global controlled_model
-    global _device
-    global _low_vram
-    global _torch_dtype
-    if low_vram:
-        enable_sliced_attention()
+    torch_dtype = torch.float32
+    if device == "cuda" and not no_half:
+        torch_dtype = torch.float16
 
     # TODO: lazy load model after server started to get download progress
-    model_path = get_model_path(model, model_dir)
-    controlled_model = init_model(model_path, device).eval()
-    if device == "cuda":
-        _torch_dtype = torch.float32 if no_half else torch.float16
-
-    controlled_model = controlled_model.to(_torch_dtype)
-    controlled_model.model.diffusion_model = controlled_model.model.diffusion_model.to(
-        _torch_dtype
+    controlled_model = init_pipe(
+        model,
+        device,
+        torch_dtype=torch_dtype,
+        cpu_offload=low_vram and device == "cuda",
     )
-    _device = device
-    _low_vram = low_vram
-
     host = "0.0.0.0" if listen else "127.0.0.1"
     uvicorn.run(app, host=host, port=port)
 

@@ -4,25 +4,35 @@ import random
 from pathlib import Path
 
 import cv2
-import einops
 import numpy as np
 import torch
 from PIL import Image, ImageOps
+from diffusers import UniPCMultistepScheduler, DDIMScheduler
 from loguru import logger
-from pytorch_lightning import seed_everything
-
-from tldream.cldm.model import create_model, load_state_dict
-from tldream.ldm.models.diffusion.ddim import DDIMSampler
+from diffusers.utils import is_xformers_available
 
 current_dir = Path(__file__).parent.absolute().resolve()
 
 
-def init_model(model_path, device):
-    cfg_path = current_dir / "cldm_v15.yaml"
-    model = create_model(str(cfg_path), device).cpu()
-    model.load_state_dict(load_state_dict(model_path, location="cpu"))
-    model = model.to(device)
-    return model
+def init_pipe(model_id, device, torch_dtype, cpu_offload):
+    from diffusers import StableDiffusionControlNetPipeline, ControlNetModel
+
+    controlnet = ControlNetModel.from_pretrained(
+        "lllyasviel/sd-controlnet-scribble", torch_dtype=torch_dtype
+    )
+    pipe = StableDiffusionControlNetPipeline.from_pretrained(
+        model_id, controlnet=controlnet, torch_dtype=torch_dtype
+    )
+    pipe.enable_attention_slicing()
+
+    if cpu_offload:
+        pipe.enable_sequential_cpu_offload()
+    else:
+        pipe.to(device)
+
+    if is_xformers_available():
+        pipe.enable_xformers_memory_efficient_attention()
+    return pipe
 
 
 def get_image_ext(img_bytes):
@@ -30,25 +40,6 @@ def get_image_ext(img_bytes):
     if w is None:
         w = "jpeg"
     return w
-
-
-def HWC3(x):
-    assert x.dtype == np.uint8
-    if x.ndim == 2:
-        x = x[:, :, None]
-    assert x.ndim == 3
-    H, W, C = x.shape
-    assert C == 1 or C == 3 or C == 4
-    if C == 3:
-        return x
-    if C == 1:
-        return np.concatenate([x, x, x], axis=2)
-    if C == 4:
-        color = x[:, :, 0:3].astype(np.float32)
-        alpha = x[:, :, 3:4].astype(np.float32) / 255.0
-        y = color * alpha + 255.0 * (1.0 - alpha)
-        y = y.clip(0, 255).astype(np.uint8)
-        return y
 
 
 def preprocess_image(image, dst_width, dst_height):
@@ -149,92 +140,52 @@ def load_img(img_bytes, gray: bool = False, return_exif: bool = False):
 
 
 @torch.no_grad()
-async def process(
-    model,
-    device: str,
-    torch_dtype,
-    sampler_class,
+def process(
+    pipe,
+    sampler,
     input_image: np.ndarray,
     prompt: str,
     negative_prompt: str,
     num_samples: int = 1,
-    ddim_steps: int = 20,
+    steps: int = 20,
     width: int = 640,
     height: int = 640,
     guidance_scale: float = 9.0,
     seed: int = -1,
-    eta: float = 0.0,
-    low_vram: bool = True,
     callback=None,
 ):
     # return rgb image
-    sampler = sampler_class(model, device, torch_dtype)
-    logger.info(f"Original image shape: {input_image.shape}")
-    img = HWC3(input_image)
-    img = preprocess_image(img, width, height)
-
-    original_h, original_w = img.shape[:2]
-    img = pad_img_to_modulo(img, 64)
-    logger.info(f"Resized image shape: {img.shape}")
-    H, W, C = img.shape
-
-    detected_map = np.zeros_like(img, dtype=np.uint8)
-    detected_map[np.min(img, axis=2) < 127] = 255
-
-    control = torch.from_numpy(detected_map.copy()).to(torch_dtype).to(device) / 255.0
-    control = torch.stack([control for _ in range(num_samples)], dim=0)
-    control = einops.rearrange(control, "b h w c -> b c h w").clone()
-
     if seed == -1:
-        seed = random.randint(0, 9999999999)
-    seed_everything(seed)
+        seed = random.randint(0, 999999999)
+    generator = torch.Generator(device="cpu").manual_seed(seed)
+    if sampler == "uni_pc":
+        pipe.scheduler = UniPCMultistepScheduler.from_config(pipe.scheduler.config)
+    elif sampler == "ddim":
+        pipe.scheduler = DDIMScheduler.from_config(pipe.scheduler.config)
 
-    if low_vram:
-        model.low_vram_shift(is_diffusing=False)
-
-    cond = {
-        "c_concat": [control],
-        "c_crossattn": [model.get_learned_conditioning([prompt] * num_samples)],
-    }
-    un_cond = {
-        "c_concat": [control],
-        "c_crossattn": [
-            model.get_learned_conditioning([negative_prompt] * num_samples)
-        ],
-    }
-    shape = (4, H // 8, W // 8)
-
-    if low_vram:
-        model.low_vram_shift(is_diffusing=True)
-
-    samples = await sampler.sample(
-        ddim_steps,
-        num_samples,
-        shape,
-        cond,
-        verbose=False,
-        eta=eta,
-        unconditional_guidance_scale=guidance_scale,
-        unconditional_conditioning=un_cond,
-        img_callback=callback,
+    img = preprocess_image(input_image, width, height)
+    resized_h, resized_w = img.shape[:2]
+    img = pad_img_to_modulo(img, 32)
+    logger.info(
+        f"Original image shape: {input_image.shape}, Resized & Padded image shape: {img.shape}"
     )
 
-    if low_vram:
-        model.low_vram_shift(is_diffusing=False)
-
-    x_samples = model.decode_first_stage(samples)
-    x_samples = (
-        (einops.rearrange(x_samples, "b c h w -> b h w c") * 127.5 + 127.5)
-        .cpu()
-        .numpy()
-        .clip(0, 255)
-        .astype(np.uint8)
+    output = pipe(
+        prompt,
+        Image.fromarray(img),
+        negative_prompt=negative_prompt,
+        num_inference_steps=steps,
+        generator=generator,
+        callback=callback,
+        guidance_scale=guidance_scale,
+        num_images_per_prompt=num_samples,
     )
+    res_image = output.images[0]
+    logger.info(f"Result image shape: {res_image.size}")
 
-    results = [x_samples[i] for i in range(num_samples)]
-    res_rgb_img = results[0]
+    res_rgb_img = np.asarray(res_image)
     # remove padding
-    res_rgb_img = res_rgb_img[:original_h, :original_w]
+    res_rgb_img = res_rgb_img[:resized_h, :resized_w]
     return res_rgb_img
 
 
