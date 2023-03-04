@@ -21,7 +21,7 @@ from torch.hub import download_url_to_file
 from typer import Typer, Option
 
 from tldream.socket_manager import SocketManager
-from tldream.util import process, load_img, torch_gc, pil_to_bytes, init_pipe
+from tldream.util import process, load_img, torch_gc, pil_to_bytes, init_pipe, get_ip
 from tldream._version import __version__
 
 
@@ -155,7 +155,11 @@ def start(
         torch_dtype=torch_dtype,
         cpu_offload=low_vram and device == "cuda",
     )
-    host = "0.0.0.0" if listen else "127.0.0.1"
+    if listen:
+        host = "0.0.0.0"
+        logger.info(f"Server start at: http://{get_ip()}:{port}")
+    else:
+        host = "127.0.0.1"
     uvicorn.run(app, host=host, port=port)
 
 

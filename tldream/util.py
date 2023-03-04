@@ -1,4 +1,5 @@
 import imghdr
+import socket
 import io
 import random
 from pathlib import Path
@@ -16,6 +17,7 @@ current_dir = Path(__file__).parent.absolute().resolve()
 
 def init_pipe(model_id, device, torch_dtype, cpu_offload):
     from diffusers import StableDiffusionControlNetPipeline, ControlNetModel
+    logger.info(f"Loading model: {model_id}")
 
     controlnet = ControlNetModel.from_pretrained(
         "lllyasviel/sd-controlnet-scribble", torch_dtype=torch_dtype
@@ -193,3 +195,18 @@ def torch_gc():
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
+
+
+def get_ip() -> str:
+    # https://stackoverflow.com/questions/166506/finding-local-ip-addresses-using-pythons-stdlib
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.settimeout(0)
+    try:
+        # doesn't even have to be reachable
+        s.connect(("10.254.254.254", 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = "127.0.0.1"
+    finally:
+        s.close()
+    return IP
