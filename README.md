@@ -22,15 +22,15 @@ tldream --device cuda
 ### Command line arguments
 
 ```bash
-╭─ Options ────────────────────────────────────────────────────────────────────────────────────────────╮
-│ --listen       --no-listen                     If true, start server at 0.0.0.0 [default: no-listen] │
-│ --port                          INTEGER        [default: 4242]                                       │
-│ --device                        TEXT           Device to use (cuda, cpu or mps) [default: cuda]      │
-│ --model                         TEXT           Local path to model or model download link or model   │
-│                                                name(sd15, any3)                                      │
-│                                                [default: sd15]                                       │
-│ --low-vram     --no-low-vram                   Use low vram mode [default: low-vram]                 │
-│ --no-half      --no-no-half                    Not use float16 mode [default: no-no-half]            │
-│ --model-dir                     PATH           Directory to store models [default: ./models]         │
-╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ─────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --listen         --no-listen                  If true, start server at 0.0.0.0 [default: no-listen]                       │
+│ --port                               INTEGER  [default: 4242]                                                             │
+│ --device                             TEXT     Device to use (cuda, cpu or mps) [default: cuda]                            │
+│ --model                              TEXT     Any HuggingFace Stable Diffusion model id                                   │
+│                                               [default: runwayml/stable-diffusion-v1-5]                                   │
+│ --low-vram       --no-low-vram                Use low vram mode [default: no-low-vram]                                    │
+│ --no-half        --no-no-half                 Not use float16 mode [default: no-no-half]                                  │
+│ --nsfw-filter    --no-nsfw-filter             [default: nsfw-filter]                                                      │
+│ --help                                        Show this message and exit.                                                 │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
