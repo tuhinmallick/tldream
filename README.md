@@ -19,7 +19,9 @@
   </a>
 </p>
 
-![A screenshot of the tldream web app](https://github.com/Sanster/tldream-frontend/blob/tldream/assets/tldream.png)
+
+https://user-images.githubusercontent.com/3998421/223580181-6375fc76-414a-4837-b7ab-4fb07509afd3.mp4
+
 
 ### Quick Start
 
