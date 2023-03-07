@@ -14,6 +14,9 @@
   <a href="https://pypi.org/project/tldream/">
     <img alt="version" src="https://img.shields.io/pypi/v/tldream" />
   </a>
+   <a href="https://colab.research.google.com/drive/1e3ZkAJxvkK3uzaTGu91N9TvI_Mahs0Wb?usp=sharing">
+    <img alt="Open in Colab" src="https://colab.research.google.com/assets/colab-badge.svg" />
+  </a>
 </p>
 
 ![A screenshot of the tldream web app](https://github.com/Sanster/tldream-frontend/blob/tldream/assets/tldream.png)
