@@ -25,8 +25,10 @@
 
 ```bash
 pip install tldream
-tldream --device cuda
+tldream --model runwayml/stable-diffusion-v1-5 --device cuda
 ```
+
+- `--model`: You can use any Stable Diffusion model!
 
 ### Command line arguments
 
