@@ -15,13 +15,22 @@ from diffusers.utils import is_xformers_available
 current_dir = Path(__file__).parent.absolute().resolve()
 
 
-def init_pipe(model_id, device, torch_dtype, cpu_offload=False, nsfw_filter=True):
+def init_pipe(
+    model_id,
+    device,
+    torch_dtype,
+    cpu_offload=False,
+    nsfw_filter=True,
+    local_files_only=False,
+):
     from diffusers import StableDiffusionControlNetPipeline, ControlNetModel
 
     logger.info(f"Loading model: {model_id}")
 
     controlnet = ControlNetModel.from_pretrained(
-        "lllyasviel/sd-controlnet-scribble", torch_dtype=torch_dtype
+        "lllyasviel/sd-controlnet-scribble",
+        torch_dtype=torch_dtype,
+        local_files_only=local_files_only,
     )
 
     kwargs = {}
@@ -29,7 +38,11 @@ def init_pipe(model_id, device, torch_dtype, cpu_offload=False, nsfw_filter=True
         kwargs.update({"safety_checker": None})
 
     pipe = StableDiffusionControlNetPipeline.from_pretrained(
-        model_id, controlnet=controlnet, torch_dtype=torch_dtype, **kwargs
+        model_id,
+        controlnet=controlnet,
+        torch_dtype=torch_dtype,
+        local_files_only=local_files_only,
+        **kwargs,
     )
     pipe.enable_attention_slicing()
 

@@ -138,6 +138,10 @@ def start(
     low_vram: bool = Option(False, help="Use low vram mode"),
     fp32: bool = Option(False, help="Use float32 mode"),
     nsfw_filter: bool = Option(True),
+    local_files_only: bool = Option(
+        False,
+        help="Not connect to HuggingFace server, add this flag if model has been downloaded",
+    ),
 ):
     from diffusers.utils import DIFFUSERS_CACHE
 
@@ -156,6 +160,7 @@ def start(
         torch_dtype=torch_dtype,
         cpu_offload=low_vram and device == "cuda",
         nsfw_filter=nsfw_filter,
+        local_files_only=local_files_only,
     )
     if listen:
         host = "0.0.0.0"
