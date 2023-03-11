@@ -30,22 +30,14 @@ pip install tldream
 tldream --model runwayml/stable-diffusion-v1-5 --device cuda
 ```
 
-- `--model`: You can use any Stable Diffusion model!
-
 ### Command line arguments
 
-```bash
-╭─ Options ────────────────────────────────────────────────────────────────────────────────╮
-│ --listen         --no-listen                  If true, start server at 0.0.0.0           │
-│                                               [default: no-listen]                       │
-│ --port                               INTEGER  [default: 4242]                            │
-│ --device                             TEXT     Device to use (cuda, cpu or mps)           │
-│                                               [default: cuda]                            │
-│ --model                              TEXT     Any HuggingFace Stable Diffusion model id  │
-│                                               [default: runwayml/stable-diffusion-v1-5]  │
-│ --low-vram       --no-low-vram                Use low vram mode [default: no-low-vram]   │
-│ --fp32           --no-fp32                    Use float32 mode [default: no-fp32]        │
-│ --nsfw-filter    --no-nsfw-filter             [default: nsfw-filter]                     │
-│ --help                                        Show this message and exit.                │
-╰──────────────────────────────────────────────────────────────────────────────────────────╯
-```
+* `--listen / --no-listen`: If true, start server at 0.0.0.0  [default: no-listen]
+* `--port INTEGER`: [default: 4242]
+* `--device TEXT`: Device to use (cuda, cpu or mps)  [default: cuda]
+* `--model TEXT`: Any HuggingFace Stable Diffusion model id. Or local ckpt/safetensors path  [default: runwayml/stable-diffusion-v1-5]
+* `--low-vram / --no-low-vram`: Use low vram mode  [default: no-low-vram]
+* `--fp32 / --no-fp32`: Use float32 mode  [default: no-fp32]
+* `--nsfw-filter / --no-nsfw-filter`: [default: nsfw-filter]
+* `--cache-dir TEXT`: Model cache directory, by default model downloaded to ~/.cache/huggingface/hub
+* `--local-files-only / --no-local-files-only`: Not connect to HuggingFace server, add this flag if model has been downloaded  [default: no-local-files-only]
