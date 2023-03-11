@@ -381,6 +381,7 @@ class ControlLDM(LatentDiffusion):
         self.control_key = control_key
         self.only_mid_control = only_mid_control
         self.low_vram = False
+        self.device = torch.device("cpu")
 
     def load_control_diff(self, diff_state_dict):
         # apply transfer control - https://github.com/lllyasviel/ControlNet/blob/main/tool_transfer_control.py

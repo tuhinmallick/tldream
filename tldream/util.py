@@ -63,6 +63,7 @@ def init_ckpt_pipe(model_path, device, torch_dtype, low_vram):
     cfg_path = current_dir / "cldm_v15.yaml"
     model = create_model(str(cfg_path), str(device)).cpu()
     model.low_vram = low_vram
+    model.device = device
 
     logger.info(f"Loading model from: {model_path}")
     model_state_dict = load_state_dict(model_path, location="cpu")

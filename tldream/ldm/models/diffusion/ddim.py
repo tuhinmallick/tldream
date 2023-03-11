@@ -406,7 +406,7 @@ class DDIMSampler(object):
         inter_steps = []
         for i in tqdm(range(num_steps), desc="Encoding Image"):
             t = torch.full(
-                (x0.shape[0],), i, device=self.model.device, dtype=torch.long
+                (x0.shape[0],), i, device=self.device, dtype=torch.long
             )
             if unconditional_guidance_scale == 1.0:
                 noise_pred = self.model.apply_model(x_next, t, c)
