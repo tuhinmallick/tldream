@@ -11,9 +11,6 @@ import torch
 import numpy as np
 
 
-from tldream.util import init_pipe, process
-
-
 current_dir = Path(__file__).parent.absolute().resolve()
 
 model = current_dir / "anything-v4.5-pruned.safetensors"
@@ -25,6 +22,8 @@ model = current_dir / "anything-v4.5-pruned.safetensors"
 @pytest.mark.parametrize("low_vram", [False, True])
 def test_ckpt_model(device, sampler, torch_dtype, low_vram):
     shared.use_xformers = device == "cuda"
+    from tldream.util import init_pipe, process
+
     if device == "mps":
         if not torch.backends.mps.is_available():
             return
