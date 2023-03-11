@@ -20,7 +20,8 @@ model = current_dir / "anything-v4.5-pruned.safetensors"
 @pytest.mark.parametrize("device", ["mps", "cpu", "cuda"])
 @pytest.mark.parametrize("sampler", ["ddim", "uni_pc"])
 @pytest.mark.parametrize("torch_dtype", [torch.float32, torch.float16])
-def test_ckpt_model(device, sampler, torch_dtype):
+@pytest.mark.parametrize("low_vram", [False, True])
+def test_ckpt_model(device, sampler, torch_dtype, low_vram):
     if device == "mps":
         if not torch.backends.mps.is_available():
             return
@@ -34,7 +35,7 @@ def test_ckpt_model(device, sampler, torch_dtype):
 
     device = torch.device(device)
     controlled_model = init_pipe(
-        str(model), device, torch_dtype=torch_dtype, cpu_offload=False
+        str(model), device, torch_dtype=torch_dtype, cpu_offload=low_vram
     )
 
     image = np.zeros((254, 267, 3), dtype=np.uint8)
