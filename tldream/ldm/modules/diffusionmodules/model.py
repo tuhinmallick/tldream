@@ -7,6 +7,7 @@ from einops import rearrange
 from typing import Optional, Any
 from loguru import logger
 
+from tldream import shared
 from tldream.ldm.modules.attention import MemoryEfficientCrossAttention
 
 try:
@@ -271,7 +272,7 @@ def make_attn(in_channels, attn_type="vanilla", attn_kwargs=None):
         "linear",
         "none",
     ], f"attn_type {attn_type} unknown"
-    if XFORMERS_IS_AVAILBLE and attn_type == "vanilla":
+    if shared.use_xformers and attn_type == "vanilla":
         attn_type = "vanilla-xformers"
     # print(f"making attention of type '{attn_type}' with {in_channels} in_channels")
     if attn_type == "vanilla":
