@@ -37,7 +37,7 @@ def start(
         help="Not connect to HuggingFace server, add this flag if model has been downloaded",
     ),
 ):
-    import shared
+    from . import shared
 
     shared.use_xformers = device == "cuda" and is_xformers_available()
 
