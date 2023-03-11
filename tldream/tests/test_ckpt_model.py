@@ -45,6 +45,8 @@ def test_ckpt_model(device, sampler, torch_dtype, low_vram):
 
     process(
         controlled_model,
+        device,
+        torch_dtype,
         sampler,
         image,
         "Hello",

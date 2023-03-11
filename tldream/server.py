@@ -15,7 +15,6 @@ from fastapi import FastAPI, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from starlette.responses import FileResponse, StreamingResponse
-from typer import Option
 
 from tldream.socket_manager import SocketManager
 from tldream.util import process, load_img, torch_gc, pil_to_bytes, init_pipe, get_ip
@@ -35,7 +34,8 @@ app.add_middleware(
 web_static_folder = os.path.join(current_dir, "out")
 app.mount("/static", StaticFiles(directory=web_static_folder), name="static")
 sio = SocketManager(app=app)
-
+_device = "cpu"
+_torch_dtype = torch.float32
 controlled_model = None
 lock = threading.Lock()
 
@@ -89,6 +89,8 @@ def run(
         try:
             res_rgb_img = process(
                 controlled_model,
+                _device,
+                _torch_dtype,
                 sampler,
                 image,
                 prompt,
@@ -127,6 +129,10 @@ def main(
     fp32: bool,
     nsfw_filter,
 ):
+    global _device
+    global _torch_dtype
+    _device = device
+
     from diffusers.utils import DIFFUSERS_CACHE
 
     logger.info(f"tldream {__version__}")
@@ -136,6 +142,7 @@ def main(
     torch_dtype = torch.float32
     if device == "cuda" and not fp32:
         torch_dtype = torch.float16
+    _torch_dtype = torch_dtype
 
     # TODO: lazy load model after server started to get download progress
     controlled_model = init_pipe(

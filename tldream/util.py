@@ -19,7 +19,6 @@ from diffusers import UniPCMultistepScheduler, DDIMScheduler, DiffusionPipeline
 from loguru import logger
 from diffusers.utils import DIFFUSERS_CACHE
 import safetensors
-from pytorch_lightning import seed_everything
 from torch.hub import download_url_to_file
 
 from tldream.cldm.hack import enable_sliced_attention
@@ -256,9 +255,20 @@ def HWC3(x):
         return y
 
 
+def seed_everything(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 @torch.no_grad()
 def ckpt_process(
     model,
+    device,
+    torch_dtype,
     sampler: str,
     input_image: np.ndarray,
     prompt: str,
@@ -271,8 +281,6 @@ def ckpt_process(
     seed: int = -1,
     callback=None,
 ):
-    device = model.device
-    torch_dtype = model.dtype
     sampler = all_ckpt_samplers[sampler](model, device, torch_dtype)
     logger.info(f"Original image shape: {input_image.shape}")
     img = HWC3(input_image)
@@ -291,7 +299,7 @@ def ckpt_process(
     control = einops.rearrange(control, "b h w c -> b c h w").clone()
 
     if seed == -1:
-        seed = random.randint(0, 9999999999)
+        seed = random.randint(0, 2**32-1)
     seed_everything(seed)
 
     low_vram = model.low_vram
@@ -347,6 +355,8 @@ def ckpt_process(
 @torch.no_grad()
 def process(
     pipe,
+    device,
+    torch_dtype,
     sampler: str,
     input_image: np.ndarray,
     prompt: str,
@@ -363,6 +373,8 @@ def process(
     if not isinstance(pipe, DiffusionPipeline):
         return ckpt_process(
             pipe,
+            device,
+            torch_dtype,
             sampler,
             input_image,
             prompt,

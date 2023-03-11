@@ -27,6 +27,8 @@ def test_model(device, sampler):
 
     process(
         controlled_model,
+        device,
+        torch.float32,
         sampler,
         image,
         "Hello",
@@ -58,6 +60,8 @@ def test_cuda_model(sampler, torch_dtype, cpu_offload, nsfw_filter):
 
     process(
         controlled_model,
+        device,
+        torch_dtype,
         sampler,
         image,
         "Hello",

@@ -9,14 +9,12 @@ https://github.com/CompVis/taming-transformers
 import torch
 import torch.nn as nn
 import numpy as np
-import pytorch_lightning as pl
 from torch.optim.lr_scheduler import LambdaLR
 from einops import rearrange, repeat
 from contextlib import contextmanager, nullcontext
 from functools import partial
 import itertools
 from tqdm import tqdm
-from pytorch_lightning.utilities.distributed import rank_zero_only
 from omegaconf import ListConfig
 
 from tldream.ldm.util import log_txt_as_img, exists, default, ismap, isimage, mean_flat, count_params, instantiate_from_config
@@ -42,7 +40,7 @@ def uniform_on_device(r1, r2, shape, device):
     return (r1 - r2) * torch.rand(*shape, device=device) + r2
 
 
-class DDPM(pl.LightningModule):
+class DDPM(nn.Module):
     # classic DDPM with Gaussian diffusion, in image space
     def __init__(self,
                  unet_config,
@@ -585,7 +583,6 @@ class LatentDiffusion(DDPM):
         ids = torch.round(torch.linspace(0, self.num_timesteps - 1, self.num_timesteps_cond)).long()
         self.cond_ids[:self.num_timesteps_cond] = ids
 
-    @rank_zero_only
     @torch.no_grad()
     def on_train_batch_start(self, batch, batch_idx, dataloader_idx):
         # only for very first batch
@@ -1308,7 +1305,7 @@ class LatentDiffusion(DDPM):
         return x
 
 
-class DiffusionWrapper(pl.LightningModule):
+class DiffusionWrapper(nn.Module):
     def __init__(self, diff_model_config, conditioning_key):
         super().__init__()
         self.sequential_cross_attn = diff_model_config.pop("sequential_crossattn", False)
