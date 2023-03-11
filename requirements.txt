@@ -19,3 +19,4 @@ rich
 loguru
 python-socketio
 safetensors
+xformers
