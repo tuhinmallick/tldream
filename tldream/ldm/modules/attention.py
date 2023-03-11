@@ -10,6 +10,13 @@ from tldream import shared
 from tldream.ldm.modules.diffusionmodules.util import checkpoint
 
 
+try:
+    import xformers
+    import xformers.ops
+    XFORMERS_IS_AVAILBLE = True
+except:
+    XFORMERS_IS_AVAILBLE = False
+
 # CrossAttn precision handling
 import os
 _ATTN_PRECISION = os.environ.get("ATTN_PRECISION", "fp32")
