@@ -1,5 +1,7 @@
 import pytest as pytest
 import torch
+
+from tldream import shared
 from tldream.util import process, init_pipe
 import numpy as np
 
@@ -9,6 +11,8 @@ model = "runwayml/stable-diffusion-v1-5"
 @pytest.mark.parametrize("device", ["mps", "cpu", "cuda"])
 @pytest.mark.parametrize("sampler", ["ddim", "uni_pc"])
 def test_model(device, sampler):
+    shared.use_xformers = device == "cuda"
+
     if device == "mps" and not torch.backends.mps.is_available():
         return
     if device == "cuda" and not torch.cuda.is_available():

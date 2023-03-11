@@ -2,6 +2,8 @@ import os
 
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
+from tldream import shared
 from pathlib import Path
 
 import pytest
@@ -22,6 +24,7 @@ model = current_dir / "anything-v4.5-pruned.safetensors"
 @pytest.mark.parametrize("torch_dtype", [torch.float32, torch.float16])
 @pytest.mark.parametrize("low_vram", [False, True])
 def test_ckpt_model(device, sampler, torch_dtype, low_vram):
+    shared.use_xformers = device == "cuda"
     if device == "mps":
         if not torch.backends.mps.is_available():
             return
