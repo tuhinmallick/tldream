@@ -81,8 +81,7 @@ def init_ckpt_pipe(model_path, device, torch_dtype, low_vram):
     #     exit(-1)
 
     model = model.to(torch_dtype).eval()
-    if not "cuda" in str(device) or not low_vram:
-        model.to(device)
+    model = model.to(device)
 
     return model
 
