@@ -26,6 +26,10 @@ def start(
     low_vram: bool = Option(False, help="Use low vram mode"),
     fp32: bool = Option(False, help="Use float32 mode"),
     nsfw_filter: bool = Option(True),
+    cache_dir: str = Option(
+        None,
+        help="Model cache directory, by default model downloaded to ~/.cache/huggingface/hub",
+    ),
     local_files_only: bool = Option(
         False,
         help="Not connect to HuggingFace server, add this flag if model has been downloaded",
@@ -33,6 +37,8 @@ def start(
 ):
     if local_files_only:
         os.environ["HF_HUB_OFFLINE"] = "1"
+    if cache_dir is not None:
+        os.environ["HF_HOME"] = cache_dir
 
     from .server import main
 
