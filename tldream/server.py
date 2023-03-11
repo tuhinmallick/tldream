@@ -4,11 +4,9 @@ import os
 
 from starlette.staticfiles import StaticFiles
 
-os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlparse
 
 import torch
 import uvicorn
@@ -17,7 +15,6 @@ from fastapi import FastAPI, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from starlette.responses import FileResponse, StreamingResponse
-from torch.hub import download_url_to_file
 from typer import Typer, Option
 
 from tldream.socket_manager import SocketManager
@@ -133,7 +130,7 @@ def start(
     device: str = Option("cuda", help="Device to use (cuda, cpu or mps)"),
     model: str = Option(
         "runwayml/stable-diffusion-v1-5",
-        help="Any HuggingFace Stable Diffusion model id",
+        help="Any HuggingFace Stable Diffusion model id. Or local ckpt/safetensors path",
     ),
     low_vram: bool = Option(False, help="Use low vram mode"),
     fp32: bool = Option(False, help="Use float32 mode"),
