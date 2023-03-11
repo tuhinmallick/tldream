@@ -6,6 +6,7 @@ from torch import nn, einsum
 from einops import rearrange, repeat
 from typing import Optional, Any
 
+from tldream import shared
 from tldream.ldm.modules.diffusionmodules.util import checkpoint
 
 
@@ -177,9 +178,9 @@ class CrossAttention(nn.Module):
                 sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
         else:
             sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
-        
+
         del q, k
-    
+
         if exists(mask):
             mask = rearrange(mask, 'b ... -> b (...)')
             max_neg_value = -torch.finfo(sim.dtype).max
@@ -251,7 +252,7 @@ class BasicTransformerBlock(nn.Module):
     def __init__(self, dim, n_heads, d_head, dropout=0., context_dim=None, gated_ff=True, checkpoint=True,
                  disable_self_attn=False):
         super().__init__()
-        attn_mode = "softmax-xformers" if XFORMERS_IS_AVAILBLE else "softmax"
+        attn_mode = "softmax-xformers" if shared.use_xformers else "softmax"
         assert attn_mode in self.ATTENTION_MODES
         attn_cls = self.ATTENTION_MODES[attn_mode]
         self.disable_self_attn = disable_self_attn

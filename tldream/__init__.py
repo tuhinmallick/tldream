@@ -1,5 +1,7 @@
 import os
 
+from diffusers.utils import is_xformers_available
+
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
 import warnings
@@ -35,6 +37,10 @@ def start(
         help="Not connect to HuggingFace server, add this flag if model has been downloaded",
     ),
 ):
+    import shared
+
+    shared.use_xformers = device == "cuda" and is_xformers_available()
+
     if local_files_only:
         os.environ["HF_HUB_OFFLINE"] = "1"
     if cache_dir is not None:

@@ -1,6 +1,8 @@
 import imghdr
 import os
 
+from tldream import shared
+
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 import socket
 import io
@@ -15,7 +17,7 @@ import torch
 from PIL import Image, ImageOps
 from diffusers import UniPCMultistepScheduler, DDIMScheduler, DiffusionPipeline
 from loguru import logger
-from diffusers.utils import is_xformers_available, DIFFUSERS_CACHE
+from diffusers.utils import DIFFUSERS_CACHE
 import safetensors
 from pytorch_lightning import seed_everything
 from torch.hub import download_url_to_file
@@ -121,7 +123,7 @@ def init_pipe(
     else:
         pipe.to(device)
 
-    if is_xformers_available():
+    if shared.use_xformers:
         pipe.enable_xformers_memory_efficient_attention()
     return pipe
 
