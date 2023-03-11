@@ -15,7 +15,7 @@ from fastapi import FastAPI, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from starlette.responses import FileResponse, StreamingResponse
-from typer import Typer, Option
+from typer import Option
 
 from tldream.socket_manager import SocketManager
 from tldream.util import process, load_img, torch_gc, pil_to_bytes, init_pipe, get_ip
@@ -35,11 +35,6 @@ app.add_middleware(
 web_static_folder = os.path.join(current_dir, "out")
 app.mount("/static", StaticFiles(directory=web_static_folder), name="static")
 sio = SocketManager(app=app)
-
-typer_app = Typer(
-    add_completion=False,
-    pretty_exceptions_show_locals=False,
-)
 
 controlled_model = None
 lock = threading.Lock()
@@ -123,22 +118,14 @@ def run(
     return response
 
 
-@typer_app.command()
-def start(
-    listen: bool = Option(False, help="If true, start server at 0.0.0.0"),
-    port: int = Option(4242),
-    device: str = Option("cuda", help="Device to use (cuda, cpu or mps)"),
-    model: str = Option(
-        "runwayml/stable-diffusion-v1-5",
-        help="Any HuggingFace Stable Diffusion model id. Or local ckpt/safetensors path",
-    ),
-    low_vram: bool = Option(False, help="Use low vram mode"),
-    fp32: bool = Option(False, help="Use float32 mode"),
-    nsfw_filter: bool = Option(True),
-    local_files_only: bool = Option(
-        False,
-        help="Not connect to HuggingFace server, add this flag if model has been downloaded",
-    ),
+def main(
+    listen: bool,
+    port: int,
+    device: str,
+    model: str,
+    low_vram: bool,
+    fp32: bool,
+    nsfw_filter,
 ):
     from diffusers.utils import DIFFUSERS_CACHE
 
@@ -157,7 +144,6 @@ def start(
         torch_dtype=torch_dtype,
         cpu_offload=low_vram and device == "cuda",
         nsfw_filter=nsfw_filter,
-        local_files_only=local_files_only,
     )
     if listen:
         host = "0.0.0.0"
@@ -165,7 +151,3 @@ def start(
     else:
         host = "127.0.0.1"
     uvicorn.run(app, host=host, port=port)
-
-
-def main():
-    typer_app()

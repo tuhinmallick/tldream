@@ -91,7 +91,6 @@ def init_pipe(
     torch_dtype,
     cpu_offload=False,
     nsfw_filter=True,
-    local_files_only=False,
 ):
     if Path(model_id).is_file():
         return init_ckpt_pipe(model_id, device, torch_dtype, cpu_offload)
@@ -103,7 +102,6 @@ def init_pipe(
     controlnet = ControlNetModel.from_pretrained(
         "lllyasviel/sd-controlnet-scribble",
         torch_dtype=torch_dtype,
-        local_files_only=local_files_only,
     )
 
     kwargs = {}
@@ -114,7 +112,6 @@ def init_pipe(
         model_id,
         controlnet=controlnet,
         torch_dtype=torch_dtype,
-        local_files_only=local_files_only,
         **kwargs,
     )
     pipe.enable_attention_slicing()
