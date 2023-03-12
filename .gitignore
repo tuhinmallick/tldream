@@ -145,3 +145,4 @@ dmypy.json
 
 tldream/out
 examples/
+config.json

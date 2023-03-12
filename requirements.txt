@@ -19,3 +19,6 @@ loguru
 python-socketio
 safetensors
 xformers
+
+gradio
+httpx[socks]

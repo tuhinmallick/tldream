@@ -4,6 +4,7 @@ import os
 
 from starlette.staticfiles import StaticFiles
 
+
 import threading
 import time
 from pathlib import Path
@@ -16,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from starlette.responses import FileResponse, StreamingResponse
 
+from tldream.const import LISTEN_HELP, merge_prompt_with_model_keywords, DEFAULT_MODEL
 from tldream.socket_manager import SocketManager
 from tldream.util import process, load_img, torch_gc, pil_to_bytes, init_pipe, get_ip
 from tldream._version import __version__
@@ -34,6 +36,7 @@ app.add_middleware(
 web_static_folder = os.path.join(current_dir, "out")
 app.mount("/static", StaticFiles(directory=web_static_folder), name="static")
 sio = SocketManager(app=app)
+_model_id = DEFAULT_MODEL
 _device = "cpu"
 _torch_dtype = torch.float32
 controlled_model = None
@@ -93,7 +96,7 @@ def run(
                 _torch_dtype,
                 sampler,
                 image,
-                prompt,
+                merge_prompt_with_model_keywords(_model_id, prompt),
                 negative_prompt=negative_prompt,
                 guidance_scale=guidance_scale,
                 steps=steps,
@@ -131,7 +134,9 @@ def main(
 ):
     global _device
     global _torch_dtype
+    global _model_id
     _device = device
+    _model_id = model
 
     from diffusers.utils import DIFFUSERS_CACHE
 
@@ -157,4 +162,5 @@ def main(
         logger.info(f"Server start at: http://{get_ip()}:{port}")
     else:
         host = "127.0.0.1"
+
     uvicorn.run(app, host=host, port=port)

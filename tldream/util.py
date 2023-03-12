@@ -1,5 +1,6 @@
 import imghdr
 import os
+from dataclasses import dataclass
 
 from tldream import shared
 
@@ -300,7 +301,7 @@ def ckpt_process(
     control = einops.rearrange(control, "b h w c -> b c h w").clone()
 
     if seed == -1:
-        seed = random.randint(0, 2**32-1)
+        seed = random.randint(0, 2**32 - 1)
     seed_everything(seed)
 
     low_vram = model.low_vram
