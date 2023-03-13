@@ -6,6 +6,9 @@ from pathlib import Path
 
 web_files = Path("tldream/out").glob("**/*")
 web_files = [str(it).replace("tldream/", "") for it in web_files]
+web_files += [
+    str(it).replace("tldream/", "") for it in Path("tldream/assets").glob("**/*")
+]
 web_files += ["cldm_v15.yaml"]
 
 
