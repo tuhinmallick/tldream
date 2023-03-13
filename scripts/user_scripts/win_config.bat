@@ -11,4 +11,6 @@ set PATH=C:\Windows\System32;%PATH%
 @call pip install xformers
 @call pip3 install -U tldream
 
+tldream --start-web-config --config-file %0\..\installer_config.json
+
 PAUSE

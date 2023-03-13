@@ -6,6 +6,6 @@ set PATH=C:\Windows\System32;%PATH%
 
 @REM SET XDG_CACHE_HOME=
 SET CUDA_VISIBLE_DEVICES=0
-@call tldream --model runwayml/stable-diffusion-v1-5 --device cuda --port 4242
+@call tldream --load-config --config-file %0\..\installer_config.json
 
 PAUSE
