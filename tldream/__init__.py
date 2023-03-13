@@ -66,7 +66,7 @@ def start(
 
     if local_files_only:
         os.environ["HF_HUB_OFFLINE"] = "1"
-    if cache_dir is not None:
+    if cache_dir:
         os.environ["HUGGINGFACE_HUB_CACHE"] = cache_dir
 
     from diffusers.utils import is_xformers_available
