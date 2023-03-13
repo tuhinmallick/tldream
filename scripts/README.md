@@ -7,4 +7,4 @@
    | ------------------------------------- | -------------------------------------- |
    | ![config](./images/configuration.png) | ![gallery](./images/model_gallery.jpg) |
 
-3. Click `win_start.bat`: The model will be automatically downloaded the first time it is used.
+3. Click `win_start.bat`: The model will be automatically downloaded the first time it is used. After the service is successfully started, open a browser and visit the following address `127.0.0.1:4242`
