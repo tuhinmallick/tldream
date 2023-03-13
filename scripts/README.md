@@ -1,0 +1,10 @@
+# Windows 1-click Installer
+
+1. Download installer from here
+2. Click `win_config.bat`: This script will download all the dependencies, and start a web config page. You can config the startup parameters of the service(e.g the download path of the model.) and preview the model's effect in the Model Gallery.
+
+   | Configuration                         | Model Gallery                          |
+   | ------------------------------------- | -------------------------------------- |
+   | ![config](./images/configuration.png) | ![gallery](./images/model_gallery.jpg) |
+
+3. Click `win_start.bat`: The model will be automatically downloaded the first time it is used.
