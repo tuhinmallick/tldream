@@ -26,6 +26,8 @@ https://user-images.githubusercontent.com/3998421/223580181-6375fc76-414a-4837-b
 ### Quick Start
 
 ```bash
+# In order to use the GPU, install cuda version of pytorch first.
+# pip install torch==1.13.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
 pip install tldream
 tldream --model runwayml/stable-diffusion-v1-5 --device cuda
 ```
