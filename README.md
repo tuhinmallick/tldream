@@ -30,6 +30,8 @@ pip install tldream
 tldream --model runwayml/stable-diffusion-v1-5 --device cuda
 ```
 
+If you are not familiar with python/pip, you can try this installer: [Windows 1-click Installer](https://github.com/Sanster/tldream/blob/tldream/scripts/README.md)
+
 ### Command line arguments
 
 * `--listen / --no-listen`: If true, start server at 0.0.0.0  [default: no-listen]
