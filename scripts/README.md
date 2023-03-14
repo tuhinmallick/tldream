@@ -3,7 +3,7 @@
 You can always install tldream for free through pip, or purchase this 1-click installer for
 - Convenient environment setup
 - A web interface for parameter configuration and model preview gallery
-- Shows your support ❤️ for this project's future development:
+- Show your support ❤️ for this project's future development:
   - [ ] Super Resoluation
   - [ ] [GLIGEN](https://github.com/gligen/GLIGEN): Open-Set Grounded Text-to-Image Generation (CVPR 2023)
 
