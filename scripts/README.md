@@ -1,7 +1,9 @@
 # Windows 1-click Installer
 
 You can always install tldream for free through pip, or purchase this 1-click installer for
-- Convenient environment setup
+- Convenient environment setup.
+- xformers included, vRAM efficiency and 
+50% speed up
 - A web interface for parameter configuration and model preview gallery
 - Show your support ❤️ for this project's future development:
   - [ ] Super Resoluation
