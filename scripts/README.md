@@ -1,4 +1,4 @@
-# Windows 1-click Installer
+# tldream Windows 1-click Installer
 
 You can always install tldream for free through pip, or purchase this 1-click installer for
 - Convenient environment setup.
