@@ -22,6 +22,9 @@
 
 https://user-images.githubusercontent.com/3998421/223580181-6375fc76-414a-4837-b7ab-4fb07509afd3.mp4
 
+### Features
+- Support any Stable Diffusion 1.5 model on HuggingFace or local ckpt/safetensors
+- Support multi-language translation: zh, ja, ko, ru
 
 ### Quick Start
 
@@ -40,8 +43,9 @@ If you are not familiar with python/pip, you can try this installer: [Windows 1-
 * `--port INTEGER`: [default: 4242]
 * `--device TEXT`: Device to use (cuda, cpu or mps)  [default: cuda]
 * `--model TEXT`: Any HuggingFace Stable Diffusion model id. Or local ckpt/safetensors path  [default: runwayml/stable-diffusion-v1-5]
+* `--lang TEXT`: Translation language model. ['en', 'zh', 'ja', 'ko', 'ru']  [default: en]
 * `--low-vram / --no-low-vram`: Use low vram mode  [default: no-low-vram]
-* `--fp32 / --no-fp32`: Use float32 mode  [default: no-fp32]
-* `--nsfw-filter / --no-nsfw-filter`: [default: nsfw-filter]
+* `--fp32 / --no-fp32`: Use float32 mode (For NVIDIA 16xx GPU)  [default: no-fp32]
+* `--nsfw-filter / --no-nsfw-filter`: Enable nsfw filter  [default: nsfw-filter]
 * `--cache-dir TEXT`: Model cache directory, by default model downloaded to ~/.cache/huggingface/hub
 * `--local-files-only / --no-local-files-only`: Not connect to HuggingFace server, add this flag if model has been downloaded  [default: no-local-files-only]
