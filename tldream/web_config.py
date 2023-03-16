@@ -28,6 +28,7 @@ class Config:
     nsfw_filter: bool = DEFAULT_NSFW_FILTER
     cache_dir: str = None
     local_files_only: bool = DEFAULT_LOCAL_FILES_ONLY
+    lang: str = "en"
 
 
 def load_config(installer_config: str):
@@ -43,6 +44,7 @@ def save_config(
     port,
     device,
     model,
+    lang,
     low_vram,
     fp32,
     nsfw_filter,
@@ -73,6 +75,7 @@ def build_config_ui(init_config):
             scale=2,
         )
         device = gr.Radio(AVAILABLE_DEVICES, label="Device", value=init_config.device)
+        lang = gr.Radio(AVAILABLE_LANGS, label="Language", value=init_config.lang)
 
     cache_dir = gr.Textbox(
         init_config.cache_dir,
@@ -99,6 +102,7 @@ def build_config_ui(init_config):
             port,
             device,
             model,
+            lang,
             low_vram,
             fp32,
             nsfw_filter,

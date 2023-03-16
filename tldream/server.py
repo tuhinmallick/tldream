@@ -40,6 +40,7 @@ _model_id = DEFAULT_MODEL
 _device = "cpu"
 _torch_dtype = torch.float32
 controlled_model = None
+lang_model = None
 lock = threading.Lock()
 
 
@@ -87,6 +88,10 @@ def run(
     )
     origin_image_bytes = image
     image, alpha_channel, exif = load_img(origin_image_bytes, return_exif=True)
+    new_prompt = lang_model(prompt)
+    if lang_model.lang != "en":
+        logger.info(f"translated prompt to: {new_prompt}")
+
     start = time.time()
     with lock:
         try:
@@ -96,7 +101,7 @@ def run(
                 _torch_dtype,
                 sampler,
                 image,
-                merge_prompt_with_model_keywords(_model_id, prompt),
+                merge_prompt_with_model_keywords(_model_id, new_prompt),
                 negative_prompt=negative_prompt,
                 guidance_scale=guidance_scale,
                 steps=steps,
@@ -128,6 +133,7 @@ def main(
     port: int,
     device: str,
     model: str,
+    lang: str,
     low_vram: bool,
     fp32: bool,
     nsfw_filter,
@@ -135,6 +141,8 @@ def main(
     global _device
     global _torch_dtype
     global _model_id
+    global lang_model
+
     _device = device
     _model_id = model
 
@@ -142,6 +150,10 @@ def main(
 
     logger.info(f"tldream {__version__}")
     logger.info(f"Model cache dir: {DIFFUSERS_CACHE}")
+
+    from .language import TranslationModel
+
+    lang_model = TranslationModel(lang)
 
     global controlled_model
     torch_dtype = torch.float32

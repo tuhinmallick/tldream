@@ -23,6 +23,9 @@ def start(
     port: int = Option(DEFAULT_PORT),
     device: str = Option(DEFAULT_DEVICE, help="Device to use (cuda, cpu or mps)"),
     model: str = Option(DEFAULT_MODEL, help=MODEL_HELP),
+    lang: str = Option(
+        DEFAULT_LANG, help=f"Translation language model. {AVAILABLE_LANGS}"
+    ),
     low_vram: bool = Option(DEFAULT_LOW_VRAM, help=LOW_VRAM_HELP),
     fp32: bool = Option(DEFAULT_FP32, help=FP32_HELP),
     nsfw_filter: bool = Option(DEFAULT_NSFW_FILTER, help=NSFW_FILTER_HELP),
@@ -55,11 +58,16 @@ def start(
         nsfw_filter = config.nsfw_filter
         cache_dir = config.cache_dir
         local_files_only = config.local_files_only
+        lang = config.lang
 
     if device not in AVAILABLE_DEVICES:
         logger.error(
             f"Device {device} is not supported, use one of {AVAILABLE_DEVICES}"
         )
+        exit(-1)
+
+    if lang not in AVAILABLE_LANGS:
+        logger.error(f"Language {lang} is not supported, use one of {AVAILABLE_LANGS}")
         exit(-1)
 
     from . import shared
@@ -80,6 +88,7 @@ def start(
         port=port,
         device=device,
         model=model,
+        lang=lang,
         low_vram=low_vram,
         fp32=fp32,
         nsfw_filter=nsfw_filter,

@@ -6,6 +6,10 @@ DEFAULT_PORT = 4242
 DEFAULT_DEVICE = "cuda"
 AVAILABLE_DEVICES = ["cuda", "cpu", "mps"]
 
+DEFAULT_LANG = "en"
+AVAILABLE_LANGS = ["en", "zh", "ja", "ko", "ru"]
+
+
 DEFAULT_MODEL = "runwayml/stable-diffusion-v1-5"
 MODEL_HELP = "Any HuggingFace Stable Diffusion model id. Or local ckpt/safetensors path"
 
