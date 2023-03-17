@@ -88,6 +88,8 @@ def run(
     )
     origin_image_bytes = image
     image, alpha_channel, exif = load_img(origin_image_bytes, return_exif=True)
+    image = 255 - image
+
     new_prompt = lang_model(prompt)
     if lang_model.lang != "en":
         logger.info(f"translated prompt to: {new_prompt}")
