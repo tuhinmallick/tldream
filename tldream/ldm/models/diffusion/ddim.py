@@ -136,19 +136,16 @@ class DDIMSampler(object):
                             f"Warning: Got {cbs} conditionings but batch-size is {batch_size}"
                         )
 
-            else:
-                if conditioning.shape[0] != batch_size:
-                    print(
-                        f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}"
-                    )
+            elif conditioning.shape[0] != batch_size:
+                print(
+                    f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}"
+                )
 
         self.make_schedule(ddim_num_steps=S, ddim_eta=eta, verbose=verbose)
         # sampling
         C, H, W = shape
         size = (batch_size, C, H, W)
-        # print(f"Data shape for DDIM sampling is {size}, eta {eta}")
-
-        samples = self.ddim_sampling(
+        return self.ddim_sampling(
             conditioning,
             size,
             callback=callback,
@@ -168,7 +165,6 @@ class DDIMSampler(object):
             dynamic_threshold=dynamic_threshold,
             ucg_schedule=ucg_schedule,
         )
-        return samples
 
     @torch.no_grad()
     def ddim_sampling(
@@ -206,7 +202,7 @@ class DDIMSampler(object):
                 if ddim_use_original_steps
                 else self.ddim_timesteps
             )
-        elif timesteps is not None and not ddim_use_original_steps:
+        elif not ddim_use_original_steps:
             subset_end = (
                 int(
                     min(timesteps / self.ddim_timesteps.shape[0], 1)
@@ -446,7 +442,7 @@ class DDIMSampler(object):
 
         out = {"x_encoded": x_next, "intermediate_steps": inter_steps}
         if return_intermediates:
-            out.update({"intermediates": intermediates})
+            out["intermediates"] = intermediates
         return x_next, out
 
     @torch.no_grad()

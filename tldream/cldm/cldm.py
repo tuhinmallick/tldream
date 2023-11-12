@@ -30,9 +30,7 @@ def get_node_name(name, parent_name):
     if len(name) <= len(parent_name):
         return False, ""
     p = name[: len(parent_name)]
-    if p != parent_name:
-        return False, ""
-    return True, name[len(parent_name) :]
+    return (False, "") if p != parent_name else (True, name[len(parent_name) :])
 
 
 class ControlledUnetModel(UNetModel):
@@ -59,11 +57,12 @@ class ControlledUnetModel(UNetModel):
 
         h += control.pop()
 
-        for i, module in enumerate(self.output_blocks):
-            if only_mid_control:
-                h = torch.cat([h, hs.pop()], dim=1)
-            else:
-                h = torch.cat([h, hs.pop() + control.pop()], dim=1)
+        for module in self.output_blocks:
+            h = (
+                torch.cat([h, hs.pop()], dim=1)
+                if only_mid_control
+                else torch.cat([h, hs.pop() + control.pop()], dim=1)
+            )
             h = module(h, emb, context)
 
         h = h.type(x.dtype)
@@ -134,13 +133,13 @@ class ControlNet(nn.Module):
         self.model_channels = model_channels
         if isinstance(num_res_blocks, int):
             self.num_res_blocks = len(channel_mult) * [num_res_blocks]
-        else:
-            if len(num_res_blocks) != len(channel_mult):
-                raise ValueError(
-                    "provide num_res_blocks either as an int (globally constant) or "
-                    "as a list/tuple (per-level) with the same length as channel_mult"
-                )
+        elif len(num_res_blocks) == len(channel_mult):
             self.num_res_blocks = num_res_blocks
+        else:
+            raise ValueError(
+                "provide num_res_blocks either as an int (globally constant) or "
+                "as a list/tuple (per-level) with the same length as channel_mult"
+            )
         if disable_self_attentions is not None:
             # should be a list of booleans, indicating whether to disable self-attention in TransformerBlocks or not
             assert len(disable_self_attentions) == len(channel_mult)
@@ -434,15 +433,13 @@ class ControlLDM(LatentDiffusion):
         control = self.control_model(
             x=x_noisy, hint=cond_hint, timesteps=t, context=cond_txt
         )
-        eps = diffusion_model(
+        return diffusion_model(
             x=x_noisy,
             timesteps=t,
             context=cond_txt,
             control=control,
             only_mid_control=self.only_mid_control,
         )
-
-        return eps
 
     @torch.no_grad()
     def get_unconditional_conditioning(self, N):
@@ -483,7 +480,7 @@ class ControlLDM(LatentDiffusion):
 
         if plot_diffusion_rows:
             # get diffusion row
-            diffusion_row = list()
+            diffusion_row = []
             z_start = z[:n_row]
             for t in range(self.num_timesteps):
                 if t % self.log_every_t == 0 or t == self.num_timesteps - 1:
@@ -548,8 +545,7 @@ class ControlLDM(LatentDiffusion):
         if not self.sd_locked:
             params += list(self.model.diffusion_model.output_blocks.parameters())
             params += list(self.model.diffusion_model.out.parameters())
-        opt = torch.optim.AdamW(params, lr=lr)
-        return opt
+        return torch.optim.AdamW(params, lr=lr)
 
     def low_vram_shift(self, is_diffusing):
         if is_diffusing:

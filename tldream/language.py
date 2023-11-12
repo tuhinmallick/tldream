@@ -45,5 +45,4 @@ class TranslationModel:
             num_beams=4,
             early_stopping=True,
         )
-        new_prompt = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return new_prompt
+        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)

@@ -20,9 +20,7 @@ def load_requirements():
     requirements_file_name = "requirements.txt"
     requires = []
     with open(requirements_file_name) as f:
-        for line in f:
-            if line:
-                requires.append(line.strip())
+        requires.extend(line.strip() for line in f if line)
     return requires
 
 
@@ -35,8 +33,7 @@ except EnvironmentError:
     pass  # Okay, there is no version file.
 else:
     VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
-    mo = re.search(VSRE, verstrline, re.M)
-    if mo:
+    if mo := re.search(VSRE, verstrline, re.M):
         verstr = mo.group(1)
     else:
         print(f"unable to find version in {VERSIONFILE}")
