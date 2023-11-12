@@ -109,7 +109,9 @@ class DDPM(nn.Module):
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys, only_model=load_only_unet)
             if reset_ema:
                 assert self.use_ema
-                print(f"Resetting ema to pure model weights. This is useful when restoring from an ema-only checkpoint.")
+                print(
+                    "Resetting ema to pure model weights. This is useful when restoring from an ema-only checkpoint."
+                )
                 self.model_ema = LitEma(self.model)
         if reset_num_ema_updates:
             print(" +++++++++++ WARNING: RESETTING NUM_EMA UPDATES TO ZERO +++++++++++ ")
@@ -212,7 +214,7 @@ class DDPM(nn.Module):
         for k in keys:
             for ik in ignore_keys:
                 if k.startswith(ik):
-                    print("Deleting key {} from state_dict.".format(k))
+                    print(f"Deleting key {k} from state_dict.")
                     del sd[k]
         if self.make_it_fit:
             n_params = len([name for name, _ in
@@ -224,7 +226,7 @@ class DDPM(nn.Module):
                     desc="Fitting old weights to new weights",
                     total=n_params
             ):
-                if not name in sd:
+                if name not in sd:
                     continue
                 old_shape = sd[name].shape
                 new_shape = param.shape
@@ -233,7 +235,7 @@ class DDPM(nn.Module):
                     # we only modify first two axes
                     assert new_shape[2:] == old_shape[2:]
                 # assumes first axis corresponds to output dim
-                if not new_shape == old_shape:
+                if new_shape != old_shape:
                     new_param = param.clone()
                     old_param = sd[name]
                     if len(new_shape) == 1:
@@ -339,9 +341,7 @@ class DDPM(nn.Module):
                                 clip_denoised=self.clip_denoised)
             if i % self.log_every_t == 0 or i == self.num_timesteps - 1:
                 intermediates.append(img)
-        if return_intermediates:
-            return img, intermediates
-        return img
+        return (img, intermediates) if return_intermediates else img
 
     @torch.no_grad()
     def sample(self, batch_size=16, return_intermediates=False):
@@ -381,7 +381,6 @@ class DDPM(nn.Module):
         x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
         model_out = self.model(x_noisy, t)
 
-        loss_dict = {}
         if self.parameterization == "eps":
             target = noise
         elif self.parameterization == "x0":
@@ -395,15 +394,15 @@ class DDPM(nn.Module):
 
         log_prefix = 'train' if self.training else 'val'
 
-        loss_dict.update({f'{log_prefix}/loss_simple': loss.mean()})
+        loss_dict = {f'{log_prefix}/loss_simple': loss.mean()}
         loss_simple = loss.mean() * self.l_simple_weight
 
         loss_vlb = (self.lvlb_weights[t] * loss).mean()
-        loss_dict.update({f'{log_prefix}/loss_vlb': loss_vlb})
+        loss_dict[f'{log_prefix}/loss_vlb'] = loss_vlb
 
         loss = loss_simple + self.original_elbo_weight * loss_vlb
 
-        loss_dict.update({f'{log_prefix}/loss': loss})
+        loss_dict[f'{log_prefix}/loss'] = loss
 
         return loss, loss_dict
 
@@ -455,7 +454,7 @@ class DDPM(nn.Module):
         _, loss_dict_no_ema = self.shared_step(batch)
         with self.ema_scope():
             _, loss_dict_ema = self.shared_step(batch)
-            loss_dict_ema = {key + '_ema': loss_dict_ema[key] for key in loss_dict_ema}
+            loss_dict_ema = {f'{key}_ema': loss_dict_ema[key] for key in loss_dict_ema}
         self.log_dict(loss_dict_no_ema, prog_bar=False, logger=True, on_step=False, on_epoch=True)
         self.log_dict(loss_dict_ema, prog_bar=False, logger=True, on_step=False, on_epoch=True)
 
@@ -480,7 +479,7 @@ class DDPM(nn.Module):
         log["inputs"] = x
 
         # get diffusion row
-        diffusion_row = list()
+        diffusion_row = []
         x_start = x[:n_row]
 
         for t in range(self.num_timesteps):
@@ -512,9 +511,8 @@ class DDPM(nn.Module):
         lr = self.learning_rate
         params = list(self.model.parameters())
         if self.learn_logvar:
-            params = params + [self.logvar]
-        opt = torch.optim.AdamW(params, lr=lr)
-        return opt
+            params += [self.logvar]
+        return torch.optim.AdamW(params, lr=lr)
 
 
 class LatentDiffusion(DDPM):
@@ -571,7 +569,8 @@ class LatentDiffusion(DDPM):
             if reset_ema:
                 assert self.use_ema
                 print(
-                    f"Resetting ema to pure model weights. This is useful when restoring from an ema-only checkpoint.")
+                    "Resetting ema to pure model weights. This is useful when restoring from an ema-only checkpoint."
+                )
                 self.model_ema = LitEma(self.model)
         if reset_num_ema_updates:
             print(" +++++++++++ WARNING: RESETTING NUM_EMA UPDATES TO ZERO +++++++++++ ")
@@ -616,31 +615,34 @@ class LatentDiffusion(DDPM):
             param.requires_grad = False
 
     def instantiate_cond_stage(self, config):
-        if not self.cond_stage_trainable:
-            if config == "__is_first_stage__":
-                print("Using first stage also as cond stage.")
-                self.cond_stage_model = self.first_stage_model
-            elif config == "__is_unconditional__":
-                print(f"Training {self.__class__.__name__} as an unconditional model.")
-                self.cond_stage_model = None
-                # self.be_unconditional = True
-            else:
-                model = instantiate_from_config(config)
-                self.cond_stage_model = model.eval()
-                self.cond_stage_model.train = disabled_train
-                for param in self.cond_stage_model.parameters():
-                    param.requires_grad = False
-        else:
+        if self.cond_stage_trainable:
             assert config != '__is_first_stage__'
             assert config != '__is_unconditional__'
             model = instantiate_from_config(config)
             self.cond_stage_model = model
 
+        elif config == "__is_first_stage__":
+            print("Using first stage also as cond stage.")
+            self.cond_stage_model = self.first_stage_model
+        elif config == "__is_unconditional__":
+            print(f"Training {self.__class__.__name__} as an unconditional model.")
+            self.cond_stage_model = None
+            # self.be_unconditional = True
+        else:
+            model = instantiate_from_config(config)
+            self.cond_stage_model = model.eval()
+            self.cond_stage_model.train = disabled_train
+            for param in self.cond_stage_model.parameters():
+                param.requires_grad = False
+
     def _get_denoise_row_from_list(self, samples, desc='', force_no_decoder_quantization=False):
-        denoise_row = []
-        for zd in tqdm(samples, desc=desc):
-            denoise_row.append(self.decode_first_stage(zd.to(self.device),
-                                                       force_not_quantize=force_no_decoder_quantization))
+        denoise_row = [
+            self.decode_first_stage(
+                zd.to(self.device),
+                force_not_quantize=force_no_decoder_quantization,
+            )
+            for zd in tqdm(samples, desc=desc)
+        ]
         n_imgs_per_row = len(denoise_row)
         denoise_row = torch.stack(denoise_row)  # n_log_step, n_row, C, H, W
         denoise_grid = rearrange(denoise_row, 'n b c h w -> b n c h w')
@@ -674,8 +676,7 @@ class LatentDiffusion(DDPM):
         y = torch.arange(0, h).view(h, 1, 1).repeat(1, w, 1)
         x = torch.arange(0, w).view(1, w, 1).repeat(h, 1, 1)
 
-        arr = torch.cat([y, x], dim=-1)
-        return arr
+        return torch.cat([y, x], dim=-1)
 
     def delta_border(self, h, w):
         """
@@ -688,8 +689,7 @@ class LatentDiffusion(DDPM):
         arr = self.meshgrid(h, w) / lower_right_corner
         dist_left_up = torch.min(arr, dim=-1, keepdims=True)[0]
         dist_right_down = torch.min(1 - arr, dim=-1, keepdims=True)[0]
-        edge_dist = torch.min(torch.cat([dist_left_up, dist_right_down], dim=-1), dim=-1)[0]
-        return edge_dist
+        return torch.min(torch.cat([dist_left_up, dist_right_down], dim=-1), dim=-1)[0]
 
     def get_weighting(self, h, w, Ly, Lx, device):
         weighting = self.delta_border(h, w)
@@ -772,17 +772,16 @@ class LatentDiffusion(DDPM):
         if self.model.conditioning_key is not None and not self.force_null_conditioning:
             if cond_key is None:
                 cond_key = self.cond_stage_key
-            if cond_key != self.first_stage_key:
-                if cond_key in ['caption', 'coordinates_bbox', "txt"]:
-                    xc = batch[cond_key]
-                elif cond_key in ['class_label', 'cls']:
-                    xc = batch
-                else:
-                    xc = super().get_input(batch, cond_key).to(self.device)
-            else:
+            if cond_key == self.first_stage_key:
                 xc = x
+            elif cond_key in ['caption', 'coordinates_bbox', "txt"]:
+                xc = batch[cond_key]
+            elif cond_key in ['class_label', 'cls']:
+                xc = batch
+            else:
+                xc = super().get_input(batch, cond_key).to(self.device)
             if not self.cond_stage_trainable or force_c_encode:
-                if isinstance(xc, dict) or isinstance(xc, list):
+                if isinstance(xc, (dict, list)):
                     c = self.get_learned_conditioning(xc)
                 else:
                     c = self.get_learned_conditioning(xc.to(self.device))
@@ -829,8 +828,7 @@ class LatentDiffusion(DDPM):
 
     def shared_step(self, batch, **kwargs):
         x, c = self.get_input(batch, self.first_stage_key)
-        loss = self(x, c)
-        return loss
+        return self(x, c)
 
     def forward(self, x, c, *args, **kwargs):
         t = torch.randint(0, self.num_timesteps, (x.shape[0],), device=self.device).long()
@@ -844,10 +842,7 @@ class LatentDiffusion(DDPM):
         return self.p_losses(x, c, t, *args, **kwargs)
 
     def apply_model(self, x_noisy, t, cond, return_ids=False):
-        if isinstance(cond, dict):
-            # hybrid case, cond is expected to be a dict
-            pass
-        else:
+        if not isinstance(cond, dict):
             if not isinstance(cond, list):
                 cond = [cond]
             key = 'c_concat' if self.model.conditioning_key == 'concat' else 'c_crossattn'
@@ -855,10 +850,7 @@ class LatentDiffusion(DDPM):
 
         x_recon = self.model(x_noisy, t, **cond)
 
-        if isinstance(x_recon, tuple) and not return_ids:
-            return x_recon[0]
-        else:
-            return x_recon
+        return x_recon[0] if isinstance(x_recon, tuple) and not return_ids else x_recon
 
     def _predict_eps_from_xstart(self, x_t, t, pred_xstart):
         return (extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t - pred_xstart) / \
@@ -883,7 +875,6 @@ class LatentDiffusion(DDPM):
         x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
         model_output = self.apply_model(x_noisy, t, cond)
 
-        loss_dict = {}
         prefix = 'train' if self.training else 'val'
 
         if self.parameterization == "x0":
@@ -896,22 +887,21 @@ class LatentDiffusion(DDPM):
             raise NotImplementedError()
 
         loss_simple = self.get_loss(model_output, target, mean=False).mean([1, 2, 3])
-        loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
-
+        loss_dict = {f'{prefix}/loss_simple': loss_simple.mean()}
         logvar_t = self.logvar[t].to(self.device)
         loss = loss_simple / torch.exp(logvar_t) + logvar_t
         # loss = loss_simple / torch.exp(self.logvar) + self.logvar
         if self.learn_logvar:
-            loss_dict.update({f'{prefix}/loss_gamma': loss.mean()})
-            loss_dict.update({'logvar': self.logvar.data.mean()})
+            loss_dict[f'{prefix}/loss_gamma'] = loss.mean()
+            loss_dict['logvar'] = self.logvar.data.mean()
 
         loss = self.l_simple_weight * loss.mean()
 
         loss_vlb = self.get_loss(model_output, target, mean=False).mean(dim=(1, 2, 3))
         loss_vlb = (self.lvlb_weights[t] * loss_vlb).mean()
-        loss_dict.update({f'{prefix}/loss_vlb': loss_vlb})
+        loss_dict[f'{prefix}/loss_vlb'] = loss_vlb
         loss += (self.original_elbo_weight * loss_vlb)
-        loss_dict.update({f'{prefix}/loss': loss})
+        loss_dict[f'{prefix}/loss'] = loss
 
         return loss, loss_dict
 
@@ -990,10 +980,7 @@ class LatentDiffusion(DDPM):
             shape = [batch_size] + list(shape)
         else:
             b = batch_size = shape[0]
-        if x_T is None:
-            img = torch.randn(shape, device=self.device)
-        else:
-            img = x_T
+        img = torch.randn(shape, device=self.device) if x_T is None else x_T
         intermediates = []
         if cond is not None:
             if isinstance(cond, dict):
@@ -1043,11 +1030,7 @@ class LatentDiffusion(DDPM):
             log_every_t = self.log_every_t
         device = self.betas.device
         b = shape[0]
-        if x_T is None:
-            img = torch.randn(shape, device=device)
-        else:
-            img = x_T
-
+        img = torch.randn(shape, device=device) if x_T is None else x_T
         intermediates = [img]
         if timesteps is None:
             timesteps = self.num_timesteps
@@ -1080,9 +1063,7 @@ class LatentDiffusion(DDPM):
             if callback: callback(i)
             if img_callback: img_callback(img, i)
 
-        if return_intermediates:
-            return img, intermediates
-        return img
+        return (img, intermediates) if return_intermediates else img
 
     @torch.no_grad()
     def sample(self, cond, batch_size=16, return_intermediates=False, x_T=None,
@@ -1122,18 +1103,15 @@ class LatentDiffusion(DDPM):
             xc = null_label
             if isinstance(xc, ListConfig):
                 xc = list(xc)
-            if isinstance(xc, dict) or isinstance(xc, list):
-                c = self.get_learned_conditioning(xc)
-            else:
+            if not isinstance(xc, dict) and not isinstance(xc, list):
                 if hasattr(xc, "to"):
                     xc = xc.to(self.device)
-                c = self.get_learned_conditioning(xc)
+            c = self.get_learned_conditioning(xc)
+        elif self.cond_stage_key in ["class_label", "cls"]:
+            xc = self.cond_stage_model.get_unconditional_conditioning(batch_size, device=self.device)
+            return self.get_learned_conditioning(xc)
         else:
-            if self.cond_stage_key in ["class_label", "cls"]:
-                xc = self.cond_stage_model.get_unconditional_conditioning(batch_size, device=self.device)
-                return self.get_learned_conditioning(xc)
-            else:
-                raise NotImplementedError("todo")
+            raise NotImplementedError("todo")
         if isinstance(c, list):  # in case the encoder gives us a list
             for i in range(len(c)):
                 c[i] = repeat(c[i], '1 ... -> b ...', b=batch_size).to(self.device)
@@ -1181,7 +1159,7 @@ class LatentDiffusion(DDPM):
 
         if plot_diffusion_rows:
             # get diffusion row
-            diffusion_row = list()
+            diffusion_row = []
             z_start = z[:n_row]
             for t in range(self.num_timesteps):
                 if t % self.log_every_t == 0 or t == self.num_timesteps - 1:
@@ -1276,7 +1254,7 @@ class LatentDiffusion(DDPM):
         params = list(self.model.parameters())
         if self.cond_stage_trainable:
             print(f"{self.__class__.__name__}: Also optimizing conditioner params!")
-            params = params + list(self.cond_stage_model.parameters())
+            params += list(self.cond_stage_model.parameters())
         if self.learn_logvar:
             print('Diffusion model optimizing logvar')
             params.append(self.logvar)
@@ -1320,10 +1298,7 @@ class DiffusionWrapper(nn.Module):
             xc = torch.cat([x] + c_concat, dim=1)
             out = self.diffusion_model(xc, t)
         elif self.conditioning_key == 'crossattn':
-            if not self.sequential_cross_attn:
-                cc = torch.cat(c_crossattn, 1)
-            else:
-                cc = c_crossattn
+            cc = c_crossattn if self.sequential_cross_attn else torch.cat(c_crossattn, 1)
             out = self.diffusion_model(x, t, context=cc)
         elif self.conditioning_key == 'hybrid':
             xc = torch.cat([x] + c_concat, dim=1)
@@ -1419,7 +1394,7 @@ class LatentUpscaleDiffusion(LatentDiffusion):
 
         if plot_diffusion_rows:
             # get diffusion row
-            diffusion_row = list()
+            diffusion_row = []
             z_start = z[:n_row]
             for t in range(self.num_timesteps):
                 if t % self.log_every_t == 0 or t == self.num_timesteps - 1:
@@ -1503,7 +1478,7 @@ class LatentFinetuneDiffusion(LatentDiffusion):
                  *args, **kwargs
                  ):
         ckpt_path = kwargs.pop("ckpt_path", None)
-        ignore_keys = kwargs.pop("ignore_keys", list())
+        ignore_keys = kwargs.pop("ignore_keys", [])
         super().__init__(*args, **kwargs)
         self.finetune_keys = finetune_keys
         self.concat_keys = concat_keys
@@ -1522,7 +1497,7 @@ class LatentFinetuneDiffusion(LatentDiffusion):
         for k in keys:
             for ik in ignore_keys:
                 if k.startswith(ik):
-                    print("Deleting key {} from state_dict.".format(k))
+                    print(f"Deleting key {k} from state_dict.")
                     del sd[k]
 
             # make it explicit, finetune by including extra input channels

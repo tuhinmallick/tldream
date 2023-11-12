@@ -117,17 +117,15 @@ def run(
             if "CUDA out of memory. " in str(e):
                 # NOTE: the string may change?
                 return "CUDA out of memory", 500
-            else:
-                logger.exception(e)
-                return "Internal Server Error", 500
+            logger.exception(e)
+            return "Internal Server Error", 500
         finally:
             logger.info(f"process time: {(time.time() - start) * 1000}ms")
             torch_gc()
             asyncio.run(sio.emit("finish"))
 
     bytes_io = io.BytesIO(pil_to_bytes(Image.fromarray(res_rgb_img), "jpeg"))
-    response = StreamingResponse(bytes_io)
-    return response
+    return StreamingResponse(bytes_io)
 
 
 def main(
@@ -158,9 +156,7 @@ def main(
     lang_model = TranslationModel(lang)
 
     global controlled_model
-    torch_dtype = torch.float32
-    if device == "cuda" and not fp32:
-        torch_dtype = torch.float16
+    torch_dtype = torch.float16 if device == "cuda" and not fp32 else torch.float32
     _torch_dtype = torch_dtype
 
     # TODO: lazy load model after server started to get download progress

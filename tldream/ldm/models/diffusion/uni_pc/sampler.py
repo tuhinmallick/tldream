@@ -64,11 +64,10 @@ class UniPCSampler(object):
                             f"Warning: Got {cbs} conditionings but batch-size is {batch_size}"
                         )
 
-            else:
-                if conditioning.shape[0] != batch_size:
-                    print(
-                        f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}"
-                    )
+            elif conditioning.shape[0] != batch_size:
+                print(
+                    f"Warning: Got {conditioning.shape[0]} conditionings but batch-size is {batch_size}"
+                )
 
         # sampling
         C, H, W = shape

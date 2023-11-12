@@ -108,7 +108,7 @@ def init_pipe(
 
     kwargs = {}
     if not nsfw_filter:
-        kwargs.update({"safety_checker": None})
+        kwargs["safety_checker"] = None
 
     pipe = StableDiffusionControlNetPipeline.from_pretrained(
         model_id,
@@ -173,9 +173,7 @@ def preprocess_image(image, dst_width, dst_height):
 
 
 def ceil_modulo(x, mod):
-    if x % mod == 0:
-        return x
-    return (x // mod + 1) * mod
+    return x if x % mod == 0 else (x // mod + 1) * mod
 
 
 def pad_img_to_modulo(img: np.ndarray, mod: int):
@@ -218,14 +216,13 @@ def load_img(img_bytes, gray: bool = False, return_exif: bool = False):
     if gray:
         image = image.convert("L")
         np_img = np.array(image)
+    elif image.mode == "RGBA":
+        np_img = np.array(image)
+        alpha_channel = np_img[:, :, -1]
+        np_img = cv2.cvtColor(np_img, cv2.COLOR_RGBA2RGB)
     else:
-        if image.mode == "RGBA":
-            np_img = np.array(image)
-            alpha_channel = np_img[:, :, -1]
-            np_img = cv2.cvtColor(np_img, cv2.COLOR_RGBA2RGB)
-        else:
-            image = image.convert("RGB")
-            np_img = np.array(image)
+        image = image.convert("RGB")
+        np_img = np.array(image)
 
     if return_exif:
         return np_img, alpha_channel, exif
@@ -244,7 +241,7 @@ def HWC3(x):
         x = x[:, :, None]
     assert x.ndim == 3
     H, W, C = x.shape
-    assert C == 1 or C == 3 or C == 4
+    assert C in [1, 3, 4]
     if C == 3:
         return x
     if C == 1:
@@ -349,9 +346,7 @@ def ckpt_process(
 
     results = [x_samples[i] for i in range(num_samples)]
     res_rgb_img = results[0]
-    # remove padding
-    res_rgb_img = res_rgb_img[:original_h, :original_w]
-    return res_rgb_img
+    return res_rgb_img[:original_h, :original_w]
 
 
 @torch.no_grad()
